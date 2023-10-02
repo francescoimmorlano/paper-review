@@ -1,12 +1,14 @@
 name: transferring_env
 channels:
-  - conda-forge
   - anaconda
+  - conda-forge
   - defaults
 dependencies:
   - appnope=0.1.2
   - asttokens=2.0.5
   - backcall=0.2.0
+  - backports=1.0
+  - backports.functools_lru_cache=1.6.5
   - blas=1.0
   - bottleneck=1.3.5
   - brotli=1.1.0
@@ -30,6 +32,7 @@ dependencies:
   - debugpy=1.6.7
   - decorator=5.1.1
   - eccodes=2.28.0
+  - exceptiongroup=1.1.3
   - executing=0.8.3
   - expat=2.5.0
   - fftw=3.3.10
@@ -56,6 +59,8 @@ dependencies:
   - hdf5=1.12.2
   - icu=72.1
   - idna=3.4
+  - importlib-metadata=6.8.0
+  - importlib_metadata=6.8.0
   - ipykernel=6.25.0
   - ipython=8.15.0
   - jasper=2.0.33
@@ -124,6 +129,7 @@ dependencies:
   - platformdirs=3.10.0
   - proj=9.1.1
   - prompt-toolkit=3.0.36
+  - prompt_toolkit=3.0.36
   - psutil=5.9.0
   - ptyprocess=0.7.0
   - pure_eval=0.2.2
@@ -160,6 +166,7 @@ dependencies:
   - xarray=0.20.1
   - xz=5.4.2
   - zeromq=4.3.4
+  - zipp=3.17.0
   - zlib=1.2.13
   - zstd=1.5.5
   - pip:
@@ -190,6 +197,7 @@ dependencies:
       - tensorflow-estimator==2.14.0
       - tensorflow-io-gcs-filesystem==0.34.0
       - tensorflow-macos==2.14.0
+      - tensorflow-metal==1.1.0
       - termcolor==2.3.0
       - werkzeug==2.3.7
       - wrapt==1.14.1
