@@ -136,8 +136,7 @@ The Demo software was tested on a MacBook M2 Pro equipped with MacOS Ventura 13.
 * `CMIP6_download_process.py`: about 12 seconds (after the CMIP6 data download)
 * `BEST_data_processing.py`: about 122 seconds
 * `BEST_data_add_gaussian_noise.py`: about 7 seconds
-* `First_Training.py`, `Transfer_learning_simulations.py`
-* `Transfer_learning_observations.py`: about 5 seconds per epoch
+* `First_Training.py`, `Transfer_learning_simulations.py`, `Transfer_learning_observations.py`: about 4.5 seconds per epoch
 
 Run the full version
 --------------------
