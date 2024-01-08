@@ -33,7 +33,7 @@ feature_range = (0,1)
 n_channels = 1
 
 # First training directory (only the directory name)
-FIRST_TRAINING_DIRECTORY = 'First_Training_2024-01-08_16-21-07'
+FIRST_TRAINING_DIRECTORY = ''
 
 epochs = 500
 batch_size = 16
