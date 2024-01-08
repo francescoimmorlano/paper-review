@@ -13,13 +13,13 @@ from architectures import *
 from variables import *
 
 """
-Script for training one Deep Neural Network (DNN) on the simulation of one ESM under one SSP scenario.
+Script for training one Deep Neural Network (DNN) on the simulation of one of the 22 ESMs under one of the 3 SSPs.
 Overall, 66 DNNs are trained, each on a different simulation and with the same hyperparameters
 and architecture.
 """
 
 columns_history_df = ['train_loss', 'val_loss']
-columns_model_hyperparameters_df = ['train_directory_name', 'model', 'scenario', 'date_time', 'elapsed_time', 'epochs', 'batch_size', 'start_year_training', 'end_year_training', 'val_year', 'L1_regularization', 'L2_regularization', 'shuffle', 'scale_input', 'scale_output', 'norm_min', 'norm_max', 'train_percent', 'val_percent', 'opt', 'loss', 'weight_initializer', 'activation', 'CO2eq_climate_model', 'withAerosolForcing', 'use_observations']
+columns_model_hyperparameters_df = ['train_directory_name', 'model', 'scenario', 'date_time', 'elapsed_loop_time', 'elapsed_train_time', 'epochs', 'batch_size', 'start_year_training', 'end_year_training', 'val_year', 'L1_regularization', 'L2_regularization', 'shuffle', 'scale_input', 'scale_output', 'norm_min', 'norm_max', 'train_percent', 'val_percent', 'opt', 'loss', 'weight_initializer', 'activation', 'CO2eq_climate_model', 'withAerosolForcing', 'use_observations']
 
 ts = datetime.now()
 ts_human = ts.strftime('%Y-%m-%d_%H-%M-%S')
@@ -59,6 +59,8 @@ n_filters = 128
 shuffle = (True, 42)
 
 start_year_training = 1850
+end_year_training = 2098
+n_training_years = end_year_training-start_year_training+1
 
 # Year reserved for validation 
 val_year = 2095
@@ -100,10 +102,6 @@ else:
 
 CO2eq_climate_model = 'MCE-v1-2'
 withAerosolForcing = True
-
-# Lowest and highest temperature value in the CMIP6 simulations used
-y_min = 212.1662
-y_max = 317.38766
 
 class PerformancePlotCallback(Callback):
     def __init__(self, val_X, val_y, val_year, model_name, short_scenario, scenario, y_min, y_max):
@@ -158,14 +156,13 @@ X_max_list = return_list[1]
 
 for idx_model, model in enumerate(models_list):
     for idx_short_scenario, short_scenario in enumerate(short_scenarios_list):
-        start_time = time.time()
+        start_loop_time = time.time()
 
         scenario = f'SSP{short_scenario[-3]}-{short_scenario[-2]}.{short_scenario[-1]}'
         print(f'{idx_model+1}. Model: {model} - Scenario: {scenario}\n\n')
 
         PATH_HYPERPARAMETERS_CSV = f'{PATH_HYPERPARAMETERS}/{variable_short}_{model}_{short_scenario}_{ts_human}_models_hyperparameters.csv'
-        if not os.path.exists(PATH_HYPERPARAMETERS_CSV):
-            pd.DataFrame(columns=columns_model_hyperparameters_df).to_csv(PATH_HYPERPARAMETERS_CSV)
+        if not os.path.exists(PATH_HYPERPARAMETERS_CSV): pd.DataFrame(columns=columns_model_hyperparameters_df).to_csv(PATH_HYPERPARAMETERS_CSV)
         
         df_hypp = pd.read_csv(PATH_HYPERPARAMETERS_CSV, dtype='str', usecols=columns_model_hyperparameters_df)
 
@@ -180,52 +177,39 @@ for idx_model, model in enumerate(models_list):
         n_lats = nc_historical_data['lat'].shape[0]
         n_lons = nc_historical_data['lon'].shape[0]
 
-        # If the simulation goes up to 2100 
-        if n_ssp_years == 86: 
-            simulation_array = np.zeros((2100-start_year_training+1, n_lats, n_lons))
-            years = np.arange(start_year_training, 2100+1, 1, dtype=int)
-            years = years.reshape(2100-start_year_training+1,1,1)
-        # If the simulation goes up to 2099
-        elif n_ssp_years == 85:
-            simulation_array = np.zeros((2099-start_year_training+1, n_lats, n_lons))
-            years = np.arange(start_year_training, 2099+1, 1, dtype=int)
-            years = years.reshape(2099-start_year_training+1,1,1)
-        # If the simulation goes up to 2098
-        elif n_ssp_years == 84:
-            simulation_array = np.zeros((2098-start_year_training+1, n_lats, n_lons))
-            years = np.arange(start_year_training, 2098+1, 1, dtype=int)
-            years = years.reshape(2098-start_year_training+1,1,1)
-        if start_year_training <= 2014:
-            simulation_array[:(2014-start_year_training+1),:,:] = nc_historical_data[variable_short][(start_year_training-1850):,:,:]
-            simulation_array[(2014-start_year_training+1):,:,:] = nc_ssp_data[variable_short][:,:,:]
-        else:
-            simulation_array[:,:,:] = nc_ssp_data[variable_short][(start_year_training-2015):,:,:]
+        simulation_array = np.zeros((n_training_years, n_lats, n_lons))
+        simulation_array[:2014-start_year_training+1,:,:] = nc_historical_data[variable_short][:,:,:]
+        if n_ssp_years == 86: # If the simulation goes up to 2100 
+            simulation_array[2014-start_year_training+1:,:,:] = nc_ssp_data[variable_short][:-2,:,:]
+        elif n_ssp_years == 85: # If the simulation goes up to 2099
+            simulation_array[2014-start_year_training+1:,:,:] = nc_ssp_data[variable_short][:-1,:,:]
+        elif n_ssp_years == 84: # If the simulation goes up to 2098
+            simulation_array[2014-start_year_training+1:,:,:] = nc_ssp_data[variable_short][:,:,:]
 
         nc_historical_data.close()
         nc_ssp_data.close()
         
-        # If the simulation goes up to 2100 
-        if (n_ssp_years == 86):
-            X_co2 = X_ssp_list[idx_short_scenario][:].copy()
-        # If the simulation goes up to 2099
-        elif (n_ssp_years == 85): 
-            X_co2 = X_ssp_list[idx_short_scenario][:-1].copy()
-        # If the simulation goes up to 2098
-        elif (n_ssp_years == 84): 
-            X_co2 = X_ssp_list[idx_short_scenario][:-2].copy()
+        X_co2 = X_ssp_list[idx_short_scenario].copy()
+
+        years = np.arange(start_year_training, end_year_training+1, 1, dtype=int)
+        years = years.reshape(n_training_years,1,1)
+
+        print(f'\n val x val y shape before val reservation:')
+        print(len(X_co2))
         
         val_year_idx = val_year - start_year_training
-        val_year = years[val_year_idx,0,0]
-        
         val_X = X_co2[val_year_idx]
+        val_X = np.array(val_X)
         X_co2.pop(val_year_idx)
+        X_co2 = np.array(X_co2)
         
         val_y = simulation_array[val_year_idx,:,:]
         simulation_array = np.delete(simulation_array, val_year_idx, axis=0)
-        
-        X_co2 = np.array(X_co2)
-        val_X = np.array(val_X)
 
+        print(f'\n val x val y shape before val reservation:')
+        print(X_co2.shape)
+        print(val_y.shape)
+        
         train, _, _ = sets_setup(X_co2, simulation_array, train_val_ratio, shuffle)
 
         train_X, train_y = train[0], train[1]
@@ -267,6 +251,8 @@ for idx_model, model in enumerate(models_list):
 
         callbacks = [save_validation_predictions_callback]
     
+        start_train_time = time.time()
+
         history = NN_model.fit(train_X,
                                 train_y,
                                 epochs=epochs,
@@ -274,6 +260,9 @@ for idx_model, model in enumerate(models_list):
                                 validation_data=(val_X,val_y),
                                 use_multiprocessing=True,
                                 callbacks=callbacks)
+        
+        elapsed_train = (time.time() - start_train_time)
+        elapsed_train_time = str(timedelta(seconds=elapsed_train))
 
         NN_model_name = f'{PATH_MODELS}/{variable_short}_{model}_{short_scenario}_{ts_human}_model.tf'
         NN_model.save(NN_model_name)
@@ -281,15 +270,8 @@ for idx_model, model in enumerate(models_list):
         pd.DataFrame(np.array([history.history["loss"],
                             history.history["val_loss"]]).T, columns=columns_history_df).to_csv(f'{PATH_HISTORIES}/{variable_short}_{model}_{short_scenario}_{ts_human}_history.csv')
 
-        elapsed = (time.time() - start_time)
-        elapsed_time = str(timedelta(seconds=elapsed))
-
         path_to_save_plot = f'{PATH_PLOTS}/{variable_short}_{model}_{short_scenario}_{ts_human}_trainvalcurve.png'
         plot_train_val_loss_curve(history.history["loss"], history.history["val_loss"], loss, path_to_save_plot)
-
-        df_hypp.loc[len(df_hypp.index)] = [f'First_Training_{ts_human}', model, scenario, ts_human, elapsed_time, epochs, batch_size, start_year_training, '2098', val_year, l1_regularization, l2_regularization, shuffle[0], scale_input, scale_output, feature_range[0], feature_range[1], train_val_ratio[0], train_val_ratio[1], optim.get_config(), loss, weight_initializer, activation_functions, CO2eq_climate_model, withAerosolForcing, 'False']
-
-        df_hypp.to_csv(PATH_HYPERPARAMETERS_CSV)
 
         val_y_pred = NN_model.predict(val_X)
 
@@ -303,3 +285,9 @@ for idx_model, model in enumerate(models_list):
         plot_prediction_mae_map(val_y_denorm, val_y_pred_denorm, model, scenario, epochs, val_year, f'{PATH_PLOTS}/{variable_short}_{model}_{short_scenario}_{ts_human}_pred-on-val_end-epoch.png')
 
         print('\n\n************************************ PREDICTION ON VALIDATION SET DONE ************************************\n')
+
+        elapsed_loop = (time.time() - start_loop_time)
+        elapsed_loop_time = str(timedelta(seconds=elapsed_loop))
+
+        df_hypp.loc[len(df_hypp.index)] = [f'First_Training_{ts_human}', model, scenario, ts_human, elapsed_loop_time, elapsed_train_time, epochs, batch_size, start_year_training, '2098', val_year, l1_regularization, l2_regularization, shuffle[0], scale_input, scale_output, feature_range[0], feature_range[1], train_val_ratio[0], train_val_ratio[1], optim.get_config(), loss, weight_initializer, activation_functions, CO2eq_climate_model, withAerosolForcing, 'False']
+        df_hypp.to_csv(PATH_HYPERPARAMETERS_CSV)

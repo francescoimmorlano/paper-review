@@ -388,11 +388,11 @@ def read_CO2_equivalent(maindir, ssp_scenario, model, withAerosolForcing, start_
     if withAerosolForcing:
         myvariable  = 'Effective Radiative Forcing|Greenhouse Gases + Aerosols'
         myData = df[(df['climate_model'] == mymodel) & (df['scenario'] == myscenario) & (df['variable'] == myvariable)]
-        DeltaR = myData.iloc[0,6+start_idx:257].values 
+        DeltaR = myData.iloc[0,6+start_idx:255].values 
     elif not withAerosolForcing:
         myvariable  = 'Effective Radiative Forcing|Greenhouse Gases'
         myData = df[(df['climate_model'] == mymodel) & (df['scenario'] == myscenario) & (df['variable'] == myvariable)]
-        DeltaR = myData.iloc[0,6+start_idx:257].values 
+        DeltaR = myData.iloc[0,6+start_idx:255].values 
         
     CO2_eq = []
     year_list = []

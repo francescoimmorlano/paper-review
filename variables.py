@@ -4,6 +4,12 @@ variable_short = 'tas'
 demo_download = False
 demo_no_download = True
 
+exclude_family_members = False
+
+# Min and max CMIP6 temperature value
+y_min = 212.1662
+y_max = 317.38766
+
 if demo_download or demo_no_download:
       models_list = ['CNRM-ESM2-1', 'FGOALS-f3-L', 'MIROC6'] 
       models_short_list = ['cnrm_esm2_1', 'fgoals_f3_l', 'miroc6']

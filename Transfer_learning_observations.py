@@ -39,10 +39,6 @@ scale_output = True
 feature_range = (0,1)
 n_channels = 1
 
-# Lowest and highest temperature value in the CMIP6 simulations used
-y_min = 212.1662
-y_max = 317.38766
-
 # First training directory (only the directory name)
 FIRST_TRAINING_DIRECTORY = ''
 
@@ -57,7 +53,7 @@ end_year_training = 2022
 start_year_test = end_year_training + 1
 end_year_test = 2098
 # Years reserved for validation
-val_years_list = [1985, 1995, 2005, 2015, 2022]
+val_years_list = [1985, 1995, 2005, 2015]
 
 n_training_years = end_year_training - start_year_training + 1
 n_test_years = end_year_test - start_year_test + 1
@@ -105,7 +101,7 @@ if compute_validation:
 else:
     columns_history_df = ['train_loss']
 
-columns_model_hyperparameters_df = ['transf_learn_directory', 'first_train_directory', 'end_year_training', 'model', 'scenario', 'date_time', 'elapsed_time', 'epochs', 'batch_size', 'learning_rate', 'shuffle', 'scale_input', 'scale_output', 'norm_min', 'norm_max', 'y_min', 'y_max', 'CO2eq_climate_model', 'withAerosolForcing', 'use_observations']
+columns_model_hyperparameters_df = ['transf_learn_directory', 'first_train_directory', 'end_year_training', 'model', 'scenario', 'date_time', 'elapsed_loop_time', 'elapsed_train_time', 'epochs', 'batch_size', 'learning_rate', 'shuffle', 'scale_input', 'scale_output', 'norm_min', 'norm_max', 'y_min', 'y_max', 'CO2eq_climate_model', 'withAerosolForcing', 'use_observations']
 
 if demo_download:
     ROOT_EXPERIMENTS = './Demo_download'
@@ -137,9 +133,9 @@ _, X_ssp370, _ = read_CO2_equivalent('./', 'ssp370', CO2eq_climate_model, withAe
 _, X_ssp585, _ = read_CO2_equivalent('./', 'ssp585', CO2eq_climate_model, withAerosolForcing)
 
 # Since we are considering observations, we use CO2eq values from 1979 up to 2098
-X_ssp245_1979_2022 = X_ssp245[start_year_training-1850:-2]
-X_ssp370_1979_2022 = X_ssp370[start_year_training-1850:-2]
-X_ssp585_1979_2022 = X_ssp585[start_year_training-1850:-2]
+X_ssp245_1979_2022 = X_ssp245[start_year_training-1850:]
+X_ssp370_1979_2022 = X_ssp370[start_year_training-1850:]
+X_ssp585_1979_2022 = X_ssp585[start_year_training-1850:]
 
 X_ssp_list = []
 X_ssp_list.append(X_ssp245_1979_2022)
@@ -155,6 +151,7 @@ X_max_list = return_list[1]
 for idx_model, model  in enumerate(models_list):
     for idx_short_scenario, scenario_short in enumerate(short_scenarios_list):
             for i in range(1,6):
+                start_loop_time = time.time()
 
                 scenario = f'SSP{scenario_short[-3]}-{scenario_short[-2]}.{scenario_short[-1]}'
                 trained_model_filename = [m for m in trained_models_list if (model in m and scenario_short in m)][0]
@@ -195,6 +192,20 @@ for idx_model, model  in enumerate(models_list):
                 trained_model = load_model(f'{PATH_TRAINED_MODELS}/{trained_model_filename}') # The model trained during the First Training must be loaded every time
                 K.set_value(trained_model.optimizer.lr, lr)
 
+                if compute_validation:
+                    n_val_years = len(val_years_list)
+                    val_X = np.zeros((n_val_years,1,1))
+                    val_y = np.zeros((n_val_years, n_lats, n_lons))
+                    
+                    idx_to_remove = []
+                    for idx_val_year, val_year in enumerate(val_years_list):
+                        val_X[idx_val_year] = train_X[val_year-start_year_training]
+                        val_y[idx_val_year] = train_y[val_year-start_year_training,:,:]
+                        idx_to_remove.append(val_year-start_year_training)
+
+                    train_X = np.delete(train_X, idx_to_remove, axis=0)
+                    train_y = np.delete(train_y, idx_to_remove, axis=0)
+
                 # The shuffle is done only on the train set. It is not needed on the test set
                 if shuffling_dataset[0]:
                     idx_array = np.arange(0, n_training_years, 1, dtype=int)
@@ -204,15 +215,6 @@ for idx_model, model  in enumerate(models_list):
                 else:
                     train_X_shuffle = train_X
                     train_y_shuffle = train_y
-
-                if compute_validation:
-                    n_val_years = len(val_years_list)
-                    val_X = np.zeros((n_val_years,1,1))
-                    val_y = np.zeros((n_val_years, n_lats, n_lons))
-                    
-                    for idx_val_year, val_year in enumerate(val_years_list):
-                        val_X[idx_val_year] = train_X[val_year-start_year_training]
-                        val_y[idx_val_year] = train_y[val_year-start_year_training,:,:]
 
                 if scale_input:
                     X_min = X_min_list[idx_short_scenario]
@@ -266,7 +268,8 @@ for idx_model, model  in enumerate(models_list):
                     save_validation_predictions_callback = []
 
                 callbacks = [save_validation_predictions_callback]
-
+                
+                start_train_time = time.time()
                 if compute_validation:
                     # Continue fitting
                     history = trained_model.fit(train_X_shuffle,
@@ -284,6 +287,9 @@ for idx_model, model  in enumerate(models_list):
                                                 batch_size=batch_size,
                                                 use_multiprocessing=True,
                                                 callbacks=callbacks)
+                
+                elapsed_train = (time.time() - start_train_time)
+                elapsed_train_time = str(timedelta(seconds=elapsed_train))
 
                 if compute_validation:
                     pd.DataFrame(np.array([history.history["loss"],
@@ -291,11 +297,13 @@ for idx_model, model  in enumerate(models_list):
                 else:
                     pd.DataFrame(np.array([history.history["loss"]]).T, columns=columns_history_df).to_csv(f'{PATH_HISTORIES}/{variable_short}_{model}_{scenario_short}_{ts_human}_history_{i}.csv')
 
-                elapsed = (time.time() - start_time)
-                elapsed_time = str(timedelta(seconds=elapsed))
+                if scale_input:
+                    train_X = normalize_img(np.array(X_ssp_list[idx_short_scenario][:n_training_years]), feature_range[0], feature_range[1], X_min, X_max).reshape(-1,1)
+                else:
+                    train_X = np.array(X_ssp_list[idx_short_scenario][:n_training_years]).reshape(-1, 1)
+                train_y_pred = trained_model.predict(train_X)
 
                 test_y_pred = trained_model.predict(test_X)
-                train_y_pred = trained_model.predict(train_X)
 
                 if scale_output:
                     train_y_pred_denorm = denormalize_img(train_y_pred,feature_range[0], feature_range[1], y_min, y_max)
@@ -328,11 +336,6 @@ for idx_model, model  in enumerate(models_list):
 
                 PATH_HYPERPARAMETERS_CSV = f'{PATH_TRANSFER_LEARNING_ON_OBSERVATIONS}/Hyperparameters/{variable_short}_{model}_{scenario_short}_{ts_human}_hyperparameters_{i}.csv'
 
-                if not os.path.exists(PATH_HYPERPARAMETERS_CSV): pd.DataFrame(columns=columns_model_hyperparameters_df).to_csv(PATH_HYPERPARAMETERS_CSV)
-                df_hypp = pd.read_csv(PATH_HYPERPARAMETERS_CSV, dtype='str', usecols=columns_model_hyperparameters_df)
-                df_hypp.loc[len(df_hypp.index)] = [f'Transfer_learning_{ts_human}', FIRST_TRAINING_DIRECTORY, end_year_training, model, scenario, ts_human, elapsed_time, epochs, batch_size, lr, shuffling_dataset[0], scale_input, scale_output, feature_range[0], feature_range[1], y_min, y_max, CO2eq_climate_model, withAerosolForcing, 'True']
-                df_hypp.to_csv(PATH_HYPERPARAMETERS_CSV)
-
                 transfer_learned_model_path_to_save = f'{PATH_MODELS}/{variable_short}_{model}_{scenario_short}_{ts_human}_model_{i}.tf'
                 trained_model.save(transfer_learned_model_path_to_save)
 
@@ -347,3 +350,11 @@ for idx_model, model  in enumerate(models_list):
                 print('\nSAVED TRAIN VAL LOSS CURVE')
                 
                 K.clear_session()
+
+                elapsed_loop = (time.time() - start_loop_time)
+                elapsed_loop_time = str(timedelta(seconds=elapsed_loop))
+
+                if not os.path.exists(PATH_HYPERPARAMETERS_CSV): pd.DataFrame(columns=columns_model_hyperparameters_df).to_csv(PATH_HYPERPARAMETERS_CSV)
+                df_hypp = pd.read_csv(PATH_HYPERPARAMETERS_CSV, dtype='str', usecols=columns_model_hyperparameters_df)
+                df_hypp.loc[len(df_hypp.index)] = [f'Transfer_learning_{ts_human}', FIRST_TRAINING_DIRECTORY, end_year_training, model, scenario, ts_human, elapsed_loop_time, elapsed_train_time, epochs, batch_size, lr, shuffling_dataset[0], scale_input, scale_output, feature_range[0], feature_range[1], y_min, y_max, CO2eq_climate_model, withAerosolForcing, 'True']
+                df_hypp.to_csv(PATH_HYPERPARAMETERS_CSV)

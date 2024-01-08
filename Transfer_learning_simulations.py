@@ -32,12 +32,8 @@ scale_output = True
 feature_range = (0,1)
 n_channels = 1
 
-# Lowest and highest temperature value in the CMIP6 simulations used
-y_min = 212.1662
-y_max = 317.38766
-
 # First training directory (only the directory name)
-FIRST_TRAINING_DIRECTORY = ''
+FIRST_TRAINING_DIRECTORY = 'First_Training_2024-01-08_16-21-07'
 
 epochs = 500
 batch_size = 16
@@ -96,7 +92,7 @@ class PerformancePlotCallback(Callback):
             plot_prediction_mae_map(val_y_denorm, val_y_pred_denorm, self.model_name, self.scenario, epoch, self.val_year, f'{PATH_TO_SAVE_PREDICTION}.png')
             
 columns_history_df = ['train_loss', 'vals_loss']
-columns_model_hyperparameters_df = ['transf_learn_directory', 'first_train_directory', 'end_year_training', 'model', 'scenario', 'date_time', 'elapsed_time', 'epochs', 'batch_size', 'learning_rate', 'shuffle', 'scale_input', 'scale_output', 'norm_min', 'norm_max', 'y_min', 'y_max', 'CO2eq_climate_model', 'withAerosolForcing']
+columns_model_hyperparameters_df = ['transf_learn_directory', 'first_train_directory', 'end_year_training', 'model', 'scenario', 'date_time', 'elapsed_loop_time', 'elapsed_train_time', 'epochs', 'batch_size', 'learning_rate', 'shuffle', 'scale_input', 'scale_output', 'norm_min', 'norm_max', 'y_min', 'y_max', 'CO2eq_climate_model', 'withAerosolForcing']
 
 if demo_download:
     ROOT_EXPERIMENTS = './Demo_download'
@@ -176,16 +172,31 @@ for model_taken_out_idx, model_taken_out  in enumerate(models_list):
     for idx_model, model in enumerate(models_list):
         if(model == model_taken_out):
             continue
+        elif exclude_family_members:
+            if (shuffle_taken_out_model_number == '01' and (model=='KACE-1-0-G' or model=='UKESM1-0-LL')): continue
+            if (shuffle_taken_out_model_number == '02' and (model=='CAMS-CSM1-0' or model=='MPI-ESM1-2-LR')): continue
+            if (shuffle_taken_out_model_number == '04' and (model=='AWI-CM-1-1-MR' or model=='MPI-ESM1-2-LR')): continue
+            if (shuffle_taken_out_model_number == '06' and (model=='NorESM2-MM' or model=='TaiESM1')): continue
+            if (shuffle_taken_out_model_number == '07' and  (model=='CNRM-ESM2-1' or model=='IPSL-CM6A-LR')): continue
+            if (shuffle_taken_out_model_number == '08' and  (model=='CNRM-CM6-1' or model=='IPSL-CM6A-LR')): continue
+            if (shuffle_taken_out_model_number == '13' and  model=='INM-CM5-0'): continue
+            if (shuffle_taken_out_model_number == '14' and  model=='INM-CM4-8'): continue
+            if (shuffle_taken_out_model_number == '15' and  (model=='CNRM-CM6-1' or model=='CNRM-ESM2-1')): continue
+            if (shuffle_taken_out_model_number == '16' and  (model=='ACCESS-CM2' or model=='UKESM1-0-LL')): continue
+            if (shuffle_taken_out_model_number == '18' and  (model=='AWI-CM-1-1-MR' or model=='CAMS-CSM1-0')): continue
+            if (shuffle_taken_out_model_number == '20' and  (model=='CMCC-CM2-SR5' or model=='TaiESM1')): continue
+            if (shuffle_taken_out_model_number == '21' and  (model=='CMCC-CM2-SR5' or model=='NorESM2-MM')): continue
+            if (shuffle_taken_out_model_number == '22' and  (model=='ACCESS-CM2' or model=='KACE-1-0-G')): continue
 
         for idx_short_scenario, short_scenario in enumerate(short_scenarios_list):
+            start_loop_time = time.time()
+
             scenario = f'SSP{short_scenario[-3]}-{short_scenario[-2]}.{short_scenario[-1]}'
 
             trained_model_name = [m for m in trained_models_list if (model in m and short_scenario in m)][0]
             print('\n************************************************************************')
             print(f'\nTrained Model: {trained_model_name}')
             print(f'\nModel to transfer learn: {model} - Model takeout: {model_taken_out} - Shuffle: {shuffle_taken_out_model_number} - Scenario: {scenario}\n')
-
-            start_time = time.time()
 
             PATH_TEST_SET_PREDICTIONS = f'{PATH_PLOTS}/Test_set_predictions/{variable_short}_{model}_{short_scenario}_shuffle-{shuffle_taken_out_model_number}'
             PATH_TRAINING_SET_PREDICTIONS = f'{PATH_PLOTS}/Training_set_predictions/{variable_short}_{model}_{short_scenario}_shuffle-{shuffle_taken_out_model_number}'
@@ -314,6 +325,8 @@ for model_taken_out_idx, model_taken_out  in enumerate(models_list):
 
             callbacks = [save_validation_predictions_callback]
             
+            start_train_time = time.time()
+
             # Continue fitting
             history = new_model.fit(train_X_shuffle,
                                     train_y_shuffle,
@@ -322,12 +335,14 @@ for model_taken_out_idx, model_taken_out  in enumerate(models_list):
                                     validation_data=(val_X,val_y),
                                     use_multiprocessing=True,
                                     callbacks=callbacks)
+            
+            elapsed_train = (time.time() - start_train_time)
+            elapsed_train_time = str(timedelta(seconds=elapsed_train))
 
             pd.DataFrame(np.array([history.history["loss"],
                                 history.history["val_loss"]]).T, columns=columns_history_df).to_csv(f'{PATH_HISTORIES}/{variable_short}_{model}_{short_scenario}_shuffle-{shuffle_taken_out_model_number}_{ts_human}_history.csv')
 
-            elapsed = (time.time() - start_time)
-            elapsed_time = str(timedelta(seconds=elapsed))
+            
 
             test_y_pred = new_model.predict(test_X)
             train_y_pred = new_model.predict(train_X)
@@ -373,8 +388,7 @@ for model_taken_out_idx, model_taken_out  in enumerate(models_list):
                 pd.DataFrame(columns=columns_model_hyperparameters_df).to_csv(PATH_HYPERPARAMETERS_CSV)
             df_hypp = pd.read_csv(PATH_HYPERPARAMETERS_CSV, dtype='str', usecols=columns_model_hyperparameters_df)
             
-            df_hypp.loc[len(df_hypp.index)] = [f'Transfer_learning_{ts_human}', FIRST_TRAINING_DIRECTORY, end_year_training, model, scenario, ts_human, elapsed_time, epochs, batch_size, lr, shuffling_dataset[0], scale_input, scale_output, feature_range[0], feature_range[1], y_min, y_max, CO2eq_climate_model, withAerosolForcing]
-            df_hypp.to_csv(PATH_HYPERPARAMETERS_CSV)
+            
 
             model_path_to_save = f'{PATH_MODELS}/{variable_short}_{model}_{short_scenario}_shuffle{shuffle_taken_out_model_number}_{ts_human}_model.tf'
             new_model.save(model_path_to_save)
@@ -387,3 +401,9 @@ for model_taken_out_idx, model_taken_out  in enumerate(models_list):
             print('\nSAVED TRAIN VAL LOSS CURVE')
 
             K.clear_session()
+
+            elapsed_loop = (time.time() - start_loop_time)
+            elapsed_loop_time = str(timedelta(seconds=elapsed_loop))
+
+            df_hypp.loc[len(df_hypp.index)] = [f'Transfer_learning_{ts_human}', FIRST_TRAINING_DIRECTORY, end_year_training, model, scenario, ts_human, elapsed_loop_time, elapsed_train_time, epochs, batch_size, lr, shuffling_dataset[0], scale_input, scale_output, feature_range[0], feature_range[1], y_min, y_max, CO2eq_climate_model, withAerosolForcing]
+            df_hypp.to_csv(PATH_HYPERPARAMETERS_CSV)
