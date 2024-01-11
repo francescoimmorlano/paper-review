@@ -66,6 +66,14 @@ The following scripts must be used to reproduce the figures and compute the valu
 * `Fig_4.py`
 * `Ext_Fig_1.py`
 * `Ext_Fig_2.py`
+* `Ext_Fig_3.py`
+* `Ext_Fig_4.py`
+* `Ext_Fig_5.py`
+* `Ext_Fig_6.py`
+* `Ext_Fig_7.py`
+* `Ext_Fig_8.py`
+* `Ext_Fig_9.py`
+* `Ext_Fig_10.py`
 * `Supp_Table_1.py`
 
 
@@ -191,10 +199,20 @@ The figures and the results present in the paper can be reproduced. After having
 │   ├── Figures
 │   │   ├── Ext_Fig_1.py
 │   │   ├── Ext_Fig_2.py
+│   │   ├── Ext_Fig_3.py
+│   │   ├── Ext_Fig_4.py
+│   │   ├── Ext_Fig_5.py
+│   │   ├── Ext_Fig_6.py
+│   │   ├── Ext_Fig_7.py
+│   │   ├── Ext_Fig_8.py
+│   │   ├── Ext_Fig_9.py
+│   │   ├── Ext_Fig_10.py
 │   │   ├── Fig_1.py
 │   │   ├── Fig_2.py
 │   │   ├── Fig_3.py
 │   │   ├── Fig_4.py
+│   │   ├── lats.pickle
+│   │   ├── lons.pickle
 │   │   ├── Supp_Table_1.py
 │   ├── Source_data
 │   │   ├── BEST_data
@@ -210,6 +228,14 @@ The following scripts should be used to reproduce the figures and compute the va
 * `Fig_4.py`
 * `Ext_Fig_1.py`
 * `Ext_Fig_2.py`
+* `Ext_Fig_3.py`
+* `Ext_Fig_4.py`
+* `Ext_Fig_5.py`
+* `Ext_Fig_6.py`
+* `Ext_Fig_7.py`
+* `Ext_Fig_8.py`
+* `Ext_Fig_9.py`
+* `Ext_Fig_10.py`
 * `Supp_Table_1.py`
 
 Contributors
