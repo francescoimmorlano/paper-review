@@ -1,13 +1,14 @@
+"""
+Author: Francesco Immorlano
+
+Script for reproducing Figure 3
+"""
+
 import os
 from netCDF4 import Dataset
 import numpy as np
 import matplotlib.pyplot as plt
-from tqdm import tqdm
-
-"""
-Script for reproducing Figure 3
-"""
-
+import pickle
 
 models_list = [
         'ACCESS-CM2',
@@ -66,36 +67,15 @@ piperiod_end    = 1900
 # historical warming estimate based on cross-chapter box 2.3 (https://www.ipcc.ch/report/ar6/wg1/downloads/report/IPCC_AR6_WGI_Chapter02.pdf)
 refperiod_conversion = 0.85
 
-""" Load predictions made by the DNNs and CMIP6 ESMs simulations"""
+""" Load DNNs predictions """
 predictions = np.zeros((n_BEST_datasets_per_model_scenario, len(models_list), len(short_scenarios_list), n_training_years+n_test_years, 64, 128))
+pickle_in = open(f'{ROOT_DATA}/Transfer_Learning_on_Observations/Transfer_learning_obs.pickle','rb')
+predictions = pickle.load(pickle_in)
+
+""" Load CMIP6 ESMs simulations """
 simulation_array = np.zeros((len(models_list), len(short_scenarios_list), 249, 64, 128))
-for model_idx, model in tqdm(enumerate(models_list), total=len(models_list)):
+for model_idx, model in enumerate(models_list):
     for scenario_idx, scenario_short in enumerate(short_scenarios_list):
-        for i in range(n_BEST_datasets_per_model_scenario):
-            TRAIN_SET_PREDICTIONS_DIRECTORY = f'{ROOT_DATA}/Transfer_Learning_on_Observations/Training_set_predictions/tas_{model}_{scenario_short}_{i+1}'
-            TEST_SET_PREDICTIONS_DIRECTORY = f'{ROOT_DATA}/Transfer_Learning_on_Observations/Test_set_predictions/tas_{model}_{scenario_short}_{i+1}'
-            # Training set predictions
-            model_train_set_predictions_filenames_list = os.listdir(TRAIN_SET_PREDICTIONS_DIRECTORY)
-            model_train_set_predictions_filenames_list = [fn for fn in model_train_set_predictions_filenames_list if (fn.endswith('.csv'))]
-            model_train_set_predictions_filenames_list.sort()
-            model_train_set_prediction_array = np.zeros((n_training_years, 64, 128))
-            for mp_idx, mp_filename in enumerate(model_train_set_predictions_filenames_list):
-                if (not mp_filename.endswith('.csv')):
-                    continue
-                file = open(f'{TRAIN_SET_PREDICTIONS_DIRECTORY}/{mp_filename}')
-                model_train_set_prediction_array[mp_idx,:,:] = np.loadtxt(file, delimiter=',')
-            predictions[i,model_idx,scenario_idx,:n_training_years,:,:] = model_train_set_prediction_array
-            # Test set predictions
-            model_test_set_predictions_filenames_list = os.listdir(TEST_SET_PREDICTIONS_DIRECTORY)
-            model_test_set_predictions_filenames_list = [fn for fn in model_test_set_predictions_filenames_list if (fn.endswith('.csv'))]
-            model_test_set_predictions_filenames_list.sort()
-            model_test_set_prediction_array = np.zeros((n_test_years, 64, 128))
-            for mp_idx, mp_filename in enumerate(model_test_set_predictions_filenames_list):
-                if (not mp_filename.endswith('.csv')):
-                    continue
-                file = open(f'{TEST_SET_PREDICTIONS_DIRECTORY}/{mp_filename}')
-                model_test_set_prediction_array[mp_idx,:,:] = np.loadtxt(file, delimiter=',')
-                predictions[i,model_idx,scenario_idx,n_training_years:,:,:] = model_test_set_prediction_array[:,:,:]
         # CMIP6 ESMs simulations
         simulations_files_list = os.listdir(SIMULATIONS_DIRECTORY)
         simulations_files_list.sort()
@@ -186,8 +166,8 @@ ipcc_wg1_median = [1.8, 2.8, 3.5]
 ipcc_wg1_q95 = [2.6, 3.7, 4.8]
 
 """ Plot """
-font = {'fontname':'Arial'}
 fig, axes = plt.subplots(1, figsize=(10,10))
+plt.rcParams.update({'font.sans-serif': 'Arial'})
 xpos = [1,2,3]
 xlabel = ['SSP2-4.5','SSP3-7.0','SSP5-8.5']
 barwidth = 0.17
@@ -413,21 +393,21 @@ axes.set_xlim([0.5,3.56])
 axes.set_ylim([0,6])
 axes.set_xticks(xpos)
 axes.set_xticklabels(xlabel, rotation=30)
-plt.xticks(fontname='Arial', fontsize=15)
-plt.yticks(fontname='Arial', fontsize=15)
+plt.xticks(fontsize=15)
+plt.yticks(fontsize=15)
 
-axes.set_ylabel('Surface Air Temperature 2081-2100 relative to '+str(refperiod_start)+'-'+str(refperiod_end)+' ($^\circ$C)',fontsize=17, labelpad=15, **font)
+axes.set_ylabel('Surface Air Temperature 2081-2100 relative to '+str(refperiod_start)+'-'+str(refperiod_end)+' ($^\circ$C)',fontsize=17, labelpad=15)
 
-legend = axes.legend(loc='upper left', shadow=False, fontsize='small',ncol=1,frameon=True,facecolor='white', framealpha=1,prop={"family":"Arial", 'size':13})    
+legend = axes.legend(loc='upper left', shadow=False, fontsize='small',ncol=1,frameon=True,facecolor='white', framealpha=1,prop={'size':13})    
 
 for yval in range(1,7):
     axes.plot([0.5,5.5],[yval-refperiod_conversion,yval-refperiod_conversion], color='black', dashes=(2, 10),linewidth=0.7)
 ax2 = axes.twinx()
 mn, mx = axes.get_ylim()
 ax2.set_ylim(mn + refperiod_conversion, mx + refperiod_conversion) 
-ax2.set_ylabel('relative to '+str(piperiod_start)+'-'+str(piperiod_end)+' ($^\circ$C)', fontsize=17, labelpad=15, **font)
+ax2.set_ylabel('relative to '+str(piperiod_start)+'-'+str(piperiod_end)+' ($^\circ$C)', fontsize=17, labelpad=15)
 
-plt.yticks(fontname='Arial', fontsize=15)
+plt.yticks(fontsize=15)
 
 axes.tick_params(
     axis='x',          # changes apply to the x-axis

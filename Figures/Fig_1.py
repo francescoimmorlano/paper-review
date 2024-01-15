@@ -1,15 +1,17 @@
+"""
+Author: Francesco Immorlano
+
+Script for reproducing Figure 1
+"""
+
 import os
 from netCDF4 import Dataset
 import numpy as np
 import matplotlib.pyplot as plt
-from tqdm import tqdm
+import pickle
 from matplotlib.legend_handler import HandlerTuple
 from cartopy.util import add_cyclic_point
 import cartopy.crs as ccrs
-
-"""
-Script for reproducing Figure 1
-"""
 
 models_list = [
         'ACCESS-CM2',
@@ -40,8 +42,6 @@ short_scenarios_list = ['ssp245', 'ssp370', 'ssp585']
 variable_short = 'tas'
 
 total_earth_area = 5.1009974e+14
-# Avg global surface temperature in 1850-1900
-global_mean_temp_1850_1900 = 13.798588235294114
 with open('../area_cella.csv', newline='') as csvfile:
     area_cella = np.genfromtxt(csvfile, delimiter=',')
 
@@ -72,37 +72,12 @@ print(f'\nModel taken out: {model_take_out} - shuffle: {shuffle_idx}')
 
 """ Load predictions made by the DNNs after transfer learning on the take-out simulation """
 predictions = np.zeros((len(models_list_take_out), len(short_scenarios_list), n_training_years+n_test_years, 64, 128))
-for model_idx, model in tqdm(enumerate(models_list_take_out), total=len(models_list_take_out)):
-    if model_take_out == model:
-        continue
-    for scenario_idx, scenario_short in enumerate(short_scenarios_list):
-        TRAIN_SET_PREDICTIONS_DIRECTORY = f'{ROOT_DATA}/Transfer_Learning_on_Simulations/Shuffle_{shuffle_idx}/Training_set_predictions/tas_{model}_{scenario_short}_shuffle-{shuffle_idx}'
-        TEST_SET_PREDICTIONS_DIRECTORY = f'{ROOT_DATA}/Transfer_Learning_on_Simulations/Shuffle_{shuffle_idx}/Test_set_predictions/tas_{model}_{scenario_short}_shuffle-{shuffle_idx}'
-        # Training set predictions
-        model_train_set_predictions_filenames_list = os.listdir(TRAIN_SET_PREDICTIONS_DIRECTORY)
-        model_train_set_predictions_filenames_list = [fn for fn in model_train_set_predictions_filenames_list if (fn.endswith('.csv'))]
-        model_train_set_predictions_filenames_list.sort()
-        model_train_set_prediction_array = np.zeros((n_training_years, 64, 128))
-        for mp_idx, mp_filename in enumerate(model_train_set_predictions_filenames_list):
-            if (not mp_filename.endswith('.csv')):
-                continue
-            file = open(f'{TRAIN_SET_PREDICTIONS_DIRECTORY}/{mp_filename}')
-            model_train_set_prediction_array[mp_idx,:,:] = np.loadtxt(file, delimiter=',')
-        predictions[model_idx,scenario_idx,:n_training_years,:,:] = model_train_set_prediction_array
-        # Test set predictions
-        model_test_set_predictions_filenames_list = os.listdir(TEST_SET_PREDICTIONS_DIRECTORY)
-        model_test_set_predictions_filenames_list = [fn for fn in model_test_set_predictions_filenames_list if (fn.endswith('.csv'))]
-        model_test_set_predictions_filenames_list.sort()
-        model_test_set_prediction_array = np.zeros((n_test_years, 64, 128))
-        for mp_idx, mp_filename in enumerate(model_test_set_predictions_filenames_list):
-            if (not mp_filename.endswith('.csv')):
-                continue
-            file = open(f'{TEST_SET_PREDICTIONS_DIRECTORY}/{mp_filename}')
-            model_test_set_prediction_array[mp_idx,:,:] = np.loadtxt(file, delimiter=',')
-        predictions[model_idx,scenario_idx,n_training_years:,:,:] = model_test_set_prediction_array[:,:,:]
+pickle_in = open(f'{ROOT_DATA}/Transfer_Learning_on_Simulations/Predictions_shuffle-{shuffle_idx}.pickle', 'rb')
+predictions = pickle.load(pickle_in)
+pickle_in.close()
 
 """ Load CMIP6 take-out simulation """
-simulations = np.zeros((len(short_scenarios_list), n_training_years+n_test_years, 64, 128))
+take_out_simulation = np.zeros((len(short_scenarios_list), n_training_years+n_test_years, 64, 128))
 for scenario_idx, scenario_short in enumerate(short_scenarios_list):
     simulations_files_list = os.listdir(SIMULATIONS_DIRECTORY)
     simulations_files_list.sort()
@@ -118,19 +93,19 @@ for scenario_idx, scenario_short in enumerate(short_scenarios_list):
     n_lons = nc_ssp_data['lon'].shape[0]
     lats = nc_ssp_data['lat'][:]
     lons = nc_ssp_data['lon'][:]
-    simulations[scenario_idx,:n_historical_years,:,:] = nc_historical_data[variable_short][:]
+    take_out_simulation[scenario_idx,:n_historical_years,:,:] = nc_historical_data[variable_short][:]
     if (n_ssp_years == 84):
-        simulations[scenario_idx,n_historical_years:,:,:] = nc_ssp_data[variable_short][:,:,:]
+        take_out_simulation[scenario_idx,n_historical_years:,:,:] = nc_ssp_data[variable_short][:,:,:]
     elif (n_ssp_years == 85):
-        simulations[scenario_idx,n_historical_years:,:,:] = nc_ssp_data[variable_short][:-1,:,:]
+        take_out_simulation[scenario_idx,n_historical_years:,:,:] = nc_ssp_data[variable_short][:-1,:,:]
     elif (n_ssp_years == 86):
-        simulations[scenario_idx,n_historical_years:,:,:] = nc_ssp_data[variable_short][:-2,:,:]
+        take_out_simulation[scenario_idx,n_historical_years:,:,:] = nc_ssp_data[variable_short][:-2,:,:]
     nc_historical_data.close()
     nc_ssp_data.close()
 
 # Convert from K to Celsius degrees
 predictions_C = predictions - 273.15
-simulations_C = simulations - 273.15
+simulations_C = take_out_simulation - 273.15
 
 # Get average temperature maps in 2081-2098 simulated by the take-out model for SSP2-4.5
 simulations_2081_2098_ssp245 = simulations_C[0,2081-1850:2098-1850+1,:,:]
@@ -144,9 +119,13 @@ avg_predictions_2081_2098_ssp245 = predictions_2081_2098_ssp245.mean(axis=(0,1))
 annual_predictions_means = ((predictions_C * area_cella).sum(axis=(-1,-2)))/total_earth_area
 annual_simulations_means = ((simulations_C * area_cella).sum(axis=(-1,-2)))/total_earth_area
 
+# Compute average temperature simulated by the take-out model in 1850-1900
+global_mean_temp_taken_out = np.mean(annual_simulations_means[:,:1900-1850], axis=1)
+
 # Compute warming wrt pre-industrial period
-annual_predictions_means -= global_mean_temp_1850_1900
-annual_simulations_means -= global_mean_temp_1850_1900
+for idx_short_scenario, short_scenario in enumerate(short_scenarios_list):
+    annual_predictions_means[:,idx_short_scenario,:] -= global_mean_temp_taken_out[idx_short_scenario]
+    annual_simulations_means[idx_short_scenario,:] -= global_mean_temp_taken_out[idx_short_scenario]
 
 # Compute average across DNNs predictions
 ensemble_predictions_means = np.mean(annual_predictions_means, axis=0)
@@ -178,22 +157,23 @@ font2 = {'family': 'Arial',
 colormap = 'seismic'
 
 size_suptitlefig = 45
-size_titlefig = 45
+size_titlefig = 46
 size_annotatation_letters = 43
-size_title_scenario_axes = 33
-size_title_map_axes = 37
+size_title_scenario_axes = 35
+size_title_map_axes = 35
 size_temp_annotation = 31
-size_x_y_ticks = 31
+size_x_y_ticks = 32
 size_plot_legend = 27
 size_x_y_legend = 39
 size_colorbar_labels = 32
 size_colorbar_ticks = 29
 
-fig = plt.figure(figsize=(40,37))
-widths = [1.5, 1]
-gs0 = fig.add_gridspec(1, 2, wspace=0.2, width_ratios=widths)
+fig = plt.figure(figsize=(42,35))
+plt.rcParams.update({'font.sans-serif': 'Arial'})
+
+gs0 = fig.add_gridspec(1, 2, wspace=0.1, width_ratios=[1.7, 1])
 gs00 = gs0[0].subgridspec(3, 1, hspace=0.5)
-gs01 = gs0[1].subgridspec(3, 1, hspace=0.6)
+gs01 = gs0[1].subgridspec(3, 1, hspace=0.5)
 
 """ ax1 """
 ax1 = fig.add_subplot(gs00[0, 0])
@@ -205,17 +185,14 @@ p13, = ax1.plot(np.arange(1850, 2099), ensemble_predictions_means[0,:], linewidt
 ax1.fill_between(np.arange(start_year_training, end_year_training+1), -2, ensemble_predictions_means[0,:end_year_training-start_year_training+1], color='red', alpha=0.1)
 # Predictions 5-95% uncertainty shading
 ax1.fill_between(np.arange(1850, 2099), q05_predictions[0,:], q95_predictions[0,:], zorder=0, facecolor='#A8FFBA')
-ax1.axhline(y=ensemble_predictions_means[0,-1],xmin=0,xmax=0.955, c="red",linewidth=1.5, zorder=2, linestyle='--')
-ax1.annotate(f'{np.round(ensemble_predictions_means[0,-1],2)}', xy=(-0.005, ensemble_predictions_means[0,-1]+0.2), xytext=(8, 0), 
-                xycoords=('axes fraction', 'data'), textcoords='offset points', size=size_temp_annotation, fontweight='bold', **font)
 ax1.set_xticks([1850, 1900, 1950, 2000, end_year_training, 2050, 2098])
-plt.xticks(fontname='Arial', fontsize=size_x_y_ticks)
-plt.yticks(fontname='Arial', fontsize=size_x_y_ticks)
-ax1.set_ylim([-2, 10])
-ax1.set_title(f'Scenario SSP2-4.5\nRMSE (2023–2098): {round(rmse_scenario[0],2)}°C — Temperature in 2098: {np.round(ensemble_predictions_means[0,-1],2)} °C [{np.round(q05_predictions[0,-1],2)}–{np.round(q95_predictions[0,-1],2)} °C]', size=size_title_scenario_axes,
-                pad=30, linespacing=1.5, **font)
+plt.xticks(fontsize=size_x_y_ticks)
+plt.yticks(fontsize=size_x_y_ticks)
+ax1.set_ylim([-1, np.ceil(np.max(annual_predictions_means[:,0]))])
+ax1.set_title(f'SSP2-4.5\nRMSE (2023–2098): {round(rmse_scenario[0],2)}°C — Temperature in 2098: {np.round(ensemble_predictions_means[0,-1],2)} °C [{np.round(q05_predictions[0,-1],2)}–{np.round(q95_predictions[0,-1],2)} °C]', size=size_title_scenario_axes,
+                pad=30, linespacing=1.5)
 l1 = ax1.legend([p11, p12, p13], ['DNNs', 'FGOALS-f3-L', 'DNNs average'],
-               handler_map={tuple: HandlerTuple(ndivide=None)}, prop={"family":"Arial",'size':size_plot_legend})
+               handler_map={tuple: HandlerTuple(ndivide=None)}, prop={"family":"Arial",'size':size_plot_legend}, loc='upper left')
 
 """ ax2 """
 ax2 = fig.add_subplot(gs00[1, 0])
@@ -226,18 +203,15 @@ p23, = ax2.plot(np.arange(1850, 2099), ensemble_predictions_means[1,:], linewidt
 ax2.fill_between(np.arange(start_year_training, end_year_training+1), -2, ensemble_predictions_means[1,:end_year_training-start_year_training+1], color='red', alpha=0.1)
 # Predictions 5-95% uncertainty shading
 ax2.fill_between(np.arange(1850, 2099), q05_predictions[1,:], q95_predictions[1,:], zorder=0, facecolor='#A8FFBA')
-ax2.axhline(y=ensemble_predictions_means[1,-1],xmin=0,xmax=0.955, c="red",linewidth=1.5, zorder=2, linestyle='--')
-ax2.annotate(f'{np.round(ensemble_predictions_means[1,-1],2)}', xy=(-0.005, ensemble_predictions_means[1,-1]+0.2), xytext=(8, 0), 
-                xycoords=('axes fraction', 'data'), textcoords='offset points', size=size_temp_annotation, fontweight='bold', **font)
 ax2.set_xticks([1850, 1900, 1950, 2000, end_year_training, 2050, 2098])
-plt.xticks(fontname='Arial', fontsize=size_x_y_ticks)
-plt.yticks(fontname='Arial', fontsize=size_x_y_ticks)
-ax2.set_ylim([-2, 10])
-ax2.set_title(f'Scenario SSP3-7.0\nRMSE (2023–2098): {round(rmse_scenario[1],2)} °C — Temperature in 2098: {np.round(ensemble_predictions_means[1,-1],2)} °C [{np.round(q05_predictions[1,-1],2)}–{np.round(q95_predictions[1,-1],2)} °C]',
-              size=size_title_scenario_axes, linespacing=1.5, pad=30, **font)
-plt.ylabel('Near surface air temperature anomaly [°C]\nBase period: 1850–1900', fontsize=size_x_y_legend, linespacing=1.5,labelpad=80, **font)
+plt.xticks(fontsize=size_x_y_ticks)
+plt.yticks(fontsize=size_x_y_ticks)
+ax2.set_ylim([-1, np.ceil(np.max(annual_predictions_means[:,1]))])
+ax2.set_title(f'SSP3-7.0\nRMSE (2023–2098): {round(rmse_scenario[1],2)} °C — Temperature in 2098: {np.round(ensemble_predictions_means[1,-1],2)} °C [{np.round(q05_predictions[1,-1],2)}–{np.round(q95_predictions[1,-1],2)} °C]',
+              size=size_title_scenario_axes, linespacing=1.5, pad=30)
+plt.ylabel('Near surface air temperature anomaly [°C]\nBase period: 1850–1900', fontsize=size_x_y_legend, linespacing=1.5,labelpad=80)
 l2 = ax2.legend([p11, p12, p13], ['DNNs', 'FGOALS-f3-L', 'DNNs average'],
-               handler_map={tuple: HandlerTuple(ndivide=None)}, prop={"family":"Arial",'size':size_plot_legend})
+               handler_map={tuple: HandlerTuple(ndivide=None)}, prop={"family":"Arial",'size':size_plot_legend}, loc='upper left')
 
 """ ax3 """
 ax3 = fig.add_subplot(gs00[2, 0])
@@ -247,18 +221,15 @@ p32, = ax3.plot(np.arange(1850, 2099), annual_simulations_means[2,:], linewidth=
 p33, = ax3.plot(np.arange(1850, 2099), ensemble_predictions_means[2,:], linewidth=5, label=f'Ensemble')
 ax3.fill_between(np.arange(start_year_training, end_year_training+1), -2, ensemble_predictions_means[2,:end_year_training-start_year_training+1], color='red', alpha=0.1)
 ax3.fill_between(np.arange(1850, 2099), q05_predictions[2,:], q95_predictions[2,:], zorder=0, facecolor='#A8FFBA')
-ax3.axhline(y=ensemble_predictions_means[2,-1],xmin=0,xmax=0.955, c="red",linewidth=1.5, zorder=2, linestyle='--')
-ax3.annotate(f'{np.round(ensemble_predictions_means[2,-1],2)}', xy=(-0.005, ensemble_predictions_means[2,-1]+0.2), xytext=(8, 0), 
-                xycoords=('axes fraction', 'data'), textcoords='offset points', size=size_temp_annotation, fontweight='bold', **font)
 ax3.set_xticks([1850, 1900, 1950, 2000, end_year_training, 2050, 2098])
-plt.xticks(fontname='Arial', fontsize=size_x_y_ticks)
-plt.yticks(fontname='Arial', fontsize=size_x_y_ticks)
-ax3.set_ylim([-2, 10])
-ax3.set_title(f'Scenario SSP5-8.5\nRMSE (2023–2098): {round(rmse_scenario[2],2)} °C — Temperature in 2098: {np.round(ensemble_predictions_means[2,-1],2)} °C [{np.round(q05_predictions[2,-1],2)}–{np.round(q95_predictions[2,-1],2)} °C]',
-              size=size_title_scenario_axes, linespacing=1.5, pad=30, **font)
-plt.xlabel('Years', fontsize=size_x_y_legend, labelpad=40, **font)
+plt.xticks(fontsize=size_x_y_ticks)
+plt.yticks(fontsize=size_x_y_ticks)
+ax3.set_ylim([-1, np.ceil(np.max(annual_predictions_means[:,2]))])
+ax3.set_title(f'SSP5-8.5\nRMSE (2023–2098): {round(rmse_scenario[2],2)} °C — Temperature in 2098: {np.round(ensemble_predictions_means[2,-1],2)} °C [{np.round(q05_predictions[2,-1],2)}–{np.round(q95_predictions[2,-1],2)} °C]',
+              size=size_title_scenario_axes, linespacing=1.5, pad=30)
+plt.xlabel('Years', fontsize=size_x_y_legend, labelpad=40)
 l = ax3.legend([p11, p12, p13], ['DNNs', 'FGOALS-f3-L', 'DNNs average'],
-               handler_map={tuple: HandlerTuple(ndivide=None)}, prop={"family":"Arial",'size':size_plot_legend})
+               handler_map={tuple: HandlerTuple(ndivide=None)}, prop={"family":"Arial",'size':size_plot_legend}, loc='upper left')
 min_value = np.concatenate((avg_predictions_2081_2098_ssp245, avg_simulations_2081_2098_ssp245)).min()
 max_value = np.concatenate((avg_predictions_2081_2098_ssp245, avg_simulations_2081_2098_ssp245)).max()
 levels = np.linspace(min_value, max_value, 30)
@@ -274,14 +245,14 @@ ax4.coastlines()
 gl4 = ax4.gridlines(draw_labels=True, linestyle='--')
 gl4.top_labels = False
 gl4.right_labels = False
-gl4.xlabel_style = {'size': size_x_y_ticks, 'color': 'k', 'rotation':0, 'font':'Arial'}
-gl4.ylabel_style = {'size': size_x_y_ticks, 'color': 'k', 'rotation':0, 'font':'Arial'}
+gl4.xlabel_style = {'size': size_x_y_ticks, 'color': 'k', 'rotation':0}
+gl4.ylabel_style = {'size': size_x_y_ticks, 'color': 'k', 'rotation':0}
 cbar4 = plt.colorbar(cs,shrink=0.8, orientation='horizontal', pad=0.12)
-cbar4.set_label('Surface Air Temperature [°C]',size=size_colorbar_labels,family='Arial',rotation='horizontal', labelpad=15)
+cbar4.set_label('Surface Air Temperature [°C]',size=size_colorbar_labels,rotation='horizontal', labelpad=15)
 for l in cbar4.ax.xaxis.get_ticklabels():
     l.set_family('Arial')
     l.set_size(size_colorbar_ticks)
-ax4.set_title(f'{model_take_out} average temperature in 2081–2098', size=size_title_map_axes, pad=17, **font)
+ax4.set_title(f'{model_take_out} average temperature (2081–2098)', size=size_title_map_axes, pad=17)
 
 """ ax5 """
 ax5 = fig.add_subplot(gs01[1, 0], projection=ccrs.Robinson())
@@ -294,14 +265,13 @@ ax5.coastlines()
 gl5 = ax5.gridlines(draw_labels=True, linestyle='--')
 gl5.top_labels = False
 gl5.right_labels = False
-gl5.xlabel_style = {'size': size_x_y_ticks, 'color': 'k', 'rotation':0, 'font':'Arial'}
-gl5.ylabel_style = {'size': size_x_y_ticks, 'color': 'k', 'rotation':0, 'font':'Arial'}
+gl5.xlabel_style = {'size': size_x_y_ticks, 'color': 'k', 'rotation':0}
+gl5.ylabel_style = {'size': size_x_y_ticks, 'color': 'k', 'rotation':0}
 cbar5 = plt.colorbar(cs,shrink=0.8, orientation='horizontal', pad=0.12)
-cbar5.set_label('Surface Air Temperature [°C]',size=size_colorbar_labels, family='Arial', rotation='horizontal', labelpad=15)
+cbar5.set_label('Surface Air Temperature [°C]',size=size_colorbar_labels, rotation='horizontal', labelpad=15)
 for l in cbar5.ax.xaxis.get_ticklabels():
-    l.set_family("Arial")
     l.set_size(size_colorbar_ticks)
-ax5.set_title(f'Ensemble DNNs average temperature in 2081–2098', size=size_title_map_axes, pad=17, **font)
+ax5.set_title(f'Ensemble DNNs average temperature (2081–2098)', size=size_title_map_axes, pad=17, **font)
 
 """ ax6 """
 ax6 = fig.add_subplot(gs01[2, 0], projection=ccrs.Robinson())
@@ -314,15 +284,15 @@ ax6.coastlines()
 gl6 = ax6.gridlines(draw_labels=True, linestyle='--')
 gl6.top_labels = False
 gl6.right_labels = False
-gl6.xlabel_style = {'size': size_x_y_ticks, 'color': 'k', 'rotation':0, 'font':'Arial'}
-gl6.ylabel_style = {'size': size_x_y_ticks, 'color': 'k', 'rotation':0, 'font':'Arial'}
+gl6.xlabel_style = {'size': size_x_y_ticks, 'color': 'k', 'rotation':0}
+gl6.ylabel_style = {'size': size_x_y_ticks, 'color': 'k', 'rotation':0}
 cbarticks_6 = [-4,-3,-2,-1,0,1,2,3,4]
 cbar = plt.colorbar(cs,shrink=0.8, ticks=cbarticks_6, orientation='horizontal', pad=0.12)
 cbar.set_label('Surface Air Temperature [°C]',size=size_colorbar_labels, family='Arial', rotation='horizontal', labelpad=15)
 for l in cbar.ax.xaxis.get_ticklabels():
     l.set_family("Arial")
     l.set_size(size_colorbar_ticks)
-ax6.set_title(f'Bias (DNNs - CMIP6)', size=size_title_map_axes, pad=17, **font)
+ax6.set_title(f'Bias (DNNs - CMIP6)', size=size_title_map_axes, pad=17)
 
 plt.draw()
 for ea in gl4.ylabel_artists:
@@ -338,10 +308,10 @@ for ea in gl6.ylabel_artists:
     if right_label:
         ea.set_visible(False)
 
-plt.text(0.1, 0.92, "a", transform=fig.transFigure, fontsize=size_annotatation_letters, **font2)
-plt.text(0.59, 0.92, "b", transform=fig.transFigure, fontsize=size_annotatation_letters, **font2)
-plt.text(0.695, 0.92, "Scenario SSP2-4.5", transform=fig.transFigure, fontsize=size_annotatation_letters-3, **font)
-plt.text(0.59, 0.63, "c", transform=fig.transFigure, fontsize=size_annotatation_letters, **font2)
-plt.text(0.59, 0.33, "d", transform=fig.transFigure, fontsize=size_annotatation_letters, **font2)
-plt.savefig(f'Fig_1_{model_take_out}_Shuffle-{shuffle_idx}.png', dpi=300, bbox_inches='tight')
+plt.text(0.1, 0.92, "a", transform=fig.transFigure, fontsize=size_annotatation_letters)
+plt.text(0.62, 0.92, "b", transform=fig.transFigure, fontsize=size_annotatation_letters)
+plt.text(0.7, 0.92, "Scenario SSP2-4.5", transform=fig.transFigure, fontsize=size_annotatation_letters-3)
+plt.text(0.62, 0.63, "c", transform=fig.transFigure, fontsize=size_annotatation_letters)
+plt.text(0.62, 0.33, "d", transform=fig.transFigure, fontsize=size_annotatation_letters)
+plt.savefig(f'Fig_1_{model_take_out}.png', dpi=300, bbox_inches='tight')
 plt.close()
