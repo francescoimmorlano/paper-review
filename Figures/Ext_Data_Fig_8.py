@@ -1,7 +1,7 @@
 """
 Author: Francesco Immorlano
 
-Script for reproducing Figure 2
+Script for reproducing Extended Data Fig. 8
 """
 
 import os
