@@ -1,3 +1,11 @@
+"""
+Author: Francesco Immorlano
+
+Script for training one Deep Neural Network (DNN) on the simulation of one of the 22 ESMs under one of the 3 SSPs.
+Overall, 66 DNNs are trained, each on a different simulation and with the same hyperparameters
+and architecture.
+"""
+
 import os
 import numpy as np
 import pandas as pd
@@ -12,11 +20,6 @@ from lib import *
 from architectures import *
 from variables import *
 
-"""
-Script for training one Deep Neural Network (DNN) on the simulation of one of the 22 ESMs under one of the 3 SSPs.
-Overall, 66 DNNs are trained, each on a different simulation and with the same hyperparameters
-and architecture.
-"""
 
 columns_history_df = ['train_loss', 'val_loss']
 columns_model_hyperparameters_df = ['train_directory_name', 'model', 'scenario', 'date_time', 'elapsed_loop_time', 'elapsed_train_time', 'epochs', 'batch_size', 'start_year_training', 'end_year_training', 'val_year', 'L1_regularization', 'L2_regularization', 'shuffle', 'scale_input', 'scale_output', 'norm_min', 'norm_max', 'train_percent', 'val_percent', 'opt', 'loss', 'weight_initializer', 'activation', 'CO2eq_climate_model', 'withAerosolForcing', 'use_observations']
@@ -52,7 +55,7 @@ save_predictions_on_validation_set = True
 
 n_channels = 1
 
-epochs = 500
+epochs = 2
 batch_size = 8
 n_filters = 128
 

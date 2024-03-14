@@ -1,3 +1,7 @@
+"""
+Author: Francesco Immorlano
+"""
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -430,3 +434,57 @@ def compute_values_for_scaling(X_ssp_list):
     return_list.extend([X_min_list, X_max_list])
 
     return return_list
+
+
+def compute_years_to_threshold(window_size, predictions_means):
+    """
+    Compute the years in which 1.5°C and 2°C thresholds will be crossed.
+    Each of those years is computed as the first year at which 21-year running averages 
+    of surface air temperature exceed the given global warming level, 
+    as done in Chapter 4 of the IPCC WGI AR6 
+
+    Parameters
+    ----------
+    window_size : int
+        Length of the moving window
+    
+    predictions_means : array
+        Array of temperature values
+    
+    Returns
+    -------
+    return : list
+        List containing the years in which 1.5°C and 2°C thresholds
+        will be crossed, respecetively
+
+    """
+    # Initialize an empty list to store moving averages
+    moving_averages = []
+
+    i = 0
+    
+    # Loop through the array to consider every window of size 21
+    while i < len(predictions_means) - window_size + 1:
+    
+        # Calculate the average of current window
+        window_average = np.sum(predictions_means[i:i+window_size]) / window_size
+        
+        # Store the average of current window in moving average list
+        moving_averages.append(window_average)
+        
+        # Shift window to right by one position
+        i += 1
+
+    # Extract from the moving averages the value exceeding 1.5 
+    value_1 = [i for i in moving_averages if i >= 1.5][0]
+    # Extract from the moving averages the value exceeding 2 
+    value_2 = [i for i in moving_averages if i >= 2][0]
+
+    year_to_1_5_threshold = 1979+10 + moving_averages.index(value_1)
+    year_to_2_threshold = 1979+10 + moving_averages.index(value_2)
+
+    return [year_to_1_5_threshold, year_to_2_threshold]
+                
+    
+
+    

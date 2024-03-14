@@ -1,10 +1,14 @@
+"""
+Author: Francesco Immorlano
+"""
+
 variable = 'near_surface_air_temperature'
 variable_short = 'tas'
 
 demo_download = False
 demo_no_download = True
 
-exclude_family_members = False
+exclude_family_members = True
 
 # Min and max CMIP6 temperature value
 y_min = 212.1662

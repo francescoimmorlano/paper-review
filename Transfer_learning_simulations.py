@@ -1,3 +1,9 @@
+"""
+Author: Francesco Immorlano
+
+Script for implementing the Leave-one-out cross validation approach
+"""
+
 from netCDF4 import Dataset
 import numpy as np
 import pandas as pd
@@ -14,11 +20,6 @@ from tensorflow.keras.callbacks import Callback
 from tensorflow.keras.optimizers.legacy import Adam 
 from lib import *
 from variables import *
-
-
-"""
-Script for implementing the Leave-one-out cross validation approach
-"""
 
 loss = 'mae'
 

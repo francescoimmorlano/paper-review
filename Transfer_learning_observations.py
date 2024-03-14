@@ -1,3 +1,9 @@
+"""
+Author: Francesco Immorlano
+
+Script for Transfer Learning on Observational Data
+"""
+
 from tensorflow.keras.models import load_model
 from tensorflow.keras import backend as K
 from tensorflow.keras.optimizers.legacy import Adam 
@@ -14,10 +20,6 @@ from datetime import timedelta
 import csv
 from lib import *
 from variables import *
-
-"""
-Script for Transfer Learning on Observational Data
-"""
 
 ts = datetime.now()
 ts_human = ts.strftime('%Y-%m-%d_%H-%M-%S')
@@ -40,9 +42,9 @@ feature_range = (0,1)
 n_channels = 1
 
 # First training directory (only the directory name)
-FIRST_TRAINING_DIRECTORY = ''
+FIRST_TRAINING_DIRECTORY = 'First_Training_2024-03-14_09-26-50'
 
-epochs = 500
+epochs = 2
 batch_size = 16
 
 lr = 1e-5
@@ -53,7 +55,7 @@ end_year_training = 2022
 start_year_test = end_year_training + 1
 end_year_test = 2098
 # Years reserved for validation
-val_years_list = [1985, 1995, 2005, 2015]
+val_years_list = [2017, 2018, 2019, 2020]
 
 n_training_years = end_year_training - start_year_training + 1
 n_test_years = end_year_test - start_year_test + 1

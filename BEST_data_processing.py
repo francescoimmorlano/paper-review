@@ -10,12 +10,14 @@ Script for processing BEST observational maps
 
 cdo = Cdo()
 
+final_year = 2022
+
 BEST_data_directory = './Demo_download/Data/BEST_data'
 
 # Regrid BEST files to match the grid of CanESM5-CanOE
 print('Regridding to CanESM5-CanOE grid... (it can take a few minutes)\n')
 if not os.path.exists(f'{BEST_data_directory}/BEST_regridded.nc'):
-    cdo.remapcon('CanESM5-CanOE_grid', input=f'{BEST_data_directory}/BEST_2022.nc', output=f'{BEST_data_directory}/BEST_regridded.nc')
+    cdo.remapcon('CanESM5-CanOE_grid', input=f'{BEST_data_directory}/BEST_{final_year}.nc', output=f'{BEST_data_directory}/BEST_regridded.nc')
 # Get absolute temperature values by adding the monthly climatology to anomalies values
 nc_best_data = Dataset(f'{BEST_data_directory}/BEST_regridded.nc', mode='r+', format='NETCDF3_CLASSIC')
 absolute_temperature_array = np.zeros((nc_best_data['temperature'].shape[0], nc_best_data['temperature'].shape[1],  nc_best_data['temperature'].shape[2]))
@@ -27,8 +29,8 @@ for i in range(nc_best_data['temperature'].shape[0]):
         month = 0
 # Compute annual BEST maps by averaging in time monthly maps for the corresponding year
 print('Computing annual average maps...\n')
-annual_data = np.zeros((2022-1850+1, nc_best_data['temperature'].shape[1], nc_best_data['temperature'].shape[2]))
-annual_data_time = np.zeros((2022-1850+1))
+annual_data = np.zeros((final_year-1850+1, nc_best_data['temperature'].shape[1], nc_best_data['temperature'].shape[2]))
+annual_data_time = np.zeros((final_year-1850+1))
 for i in range(annual_data.shape[0]):
     annual_data[i,:,:] = absolute_temperature_array[i*12:(i+1)*12, :, :].mean(axis=0)
     annual_data_time[i] = nc_best_data['time'][i*12]
@@ -74,8 +76,8 @@ nc_new.close()
 
 # Delete maps related to years out of 1979-2022 time period as they lack values in some grid points 
 print('Deleting maps related to years out of 1979-2022 time period...')
-if not os.path.exists(f'{BEST_data_directory}/BEST_regridded_annual_1979-2022.nc'):
-    cdo.selyear('1979/2022', input=f'{BEST_data_directory}/BEST_regridded_annual.nc', output=f'{BEST_data_directory}/BEST_regridded_annual_1979-2022.nc')
+if not os.path.exists(f'{BEST_data_directory}/BEST_regridded_annual_1979-{final_year}.nc'):
+    cdo.selyear('1979/2022', input=f'{BEST_data_directory}/BEST_regridded_annual.nc', output=f'{BEST_data_directory}/BEST_regridded_annual_1979-{final_year}.nc')
 
 os.remove(f'{BEST_data_directory}/BEST_regridded.nc')
 os.remove(f'{BEST_data_directory}/BEST_regridded_annual.nc')
