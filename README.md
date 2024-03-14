@@ -1,9 +1,8 @@
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.8392956.svg)](https://doi.org/10.5281/zenodo.8392956)
-
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.10818730.svg)](https://doi.org/10.5281/zenodo.10818730)
 
 Transferring climate change knowledge
 =====================================
-A repository including the code necessary to reproduce the results present in Immorlano et al. 2023, “Transferring climate change knowledge” submitted to Nature on September 21, 2023.
+A repository including the code needed to reproduce the results present in Immorlano et al. 2024, “Transferring climate change knowledge”.
 
 
 Content
@@ -20,7 +19,7 @@ Content
 
 Related Publication
 -------------------
-Immorlano, F., Eyring, V., le Monnier de Gouville, T., Accarino, G., Elia, D., Aloisio, G. & Gentine, P. Transferring climate change knowledge. arXiv preprint. DOI: <a href="https://doi.org/10.48550/arXiv.2309.14780">arXiv.2309.14780</a> (2023). (*in review*)
+Immorlano, F., Eyring, V., le Monnier de Gouville, T., Accarino, G., Elia, D., Aloisio, G. & Gentine, P. Transferring climate change knowledge. arXiv preprint. DOI: <a href="https://doi.org/10.48550/arXiv.2309.14780">arXiv.2309.14780</a> (2024). (*in review*)
 
 
 Installation
@@ -55,26 +54,29 @@ The following scripts should be used to download and process CMIP6 and BEST data
 * `BEST_data_add_gaussian_noise.py` &rarr; Generation of BEST observative maps added with Gaussian noise to be used for Transfer Learning on observations
 
 The following scripts should be used to perform Training, Transfer Learning on Simulations (leave-one-out cross-validation procedure) and the Transfer Learning on Observations:
-* `First_Training.py` &rarr; Training of each DNN on one of the 22 Earth System Models (ESMs) simulations under one of the 3 SSP scenarios
-* `Transfer_learning_simulations.py` &rarr; Pre-trained DNNs transfer learning on ESMs simulations according to the leave-one-out cross-validation (LOO-CV) procedure
-* `Transfer_learning_observations.py` &rarr; Pre-trained DNNs transfer learning on BEST observative data
+* `First_Training.py` &rarr; Training of each DNN on one of the 22 CMIP6 Earth System Models (ESMs) simulations under one of the 3 SSP scenarios
+* `Transfer_learning_simulations.py` &rarr; Transfer learning of the (pre-trained) DNNs on ESMs simulations according to the leave-one-out cross-validation (LOO-CV) procedure
+* `Transfer_learning_observations.py` &rarr; Transfer learning of the (pre-trained) DNNs on BEST observative data
 
 The following scripts must be used to reproduce the figures and compute the values for Supplementary Table 1 present in the paper:
 * `Fig_1.py`
 * `Fig_2.py`
 * `Fig_3.py`
 * `Fig_4.py`
-* `Ext_Fig_1.py`
-* `Ext_Fig_2.py`
-* `Ext_Fig_3.py`
-* `Ext_Fig_4.py`
-* `Ext_Fig_5.py`
-* `Ext_Fig_6.py`
-* `Ext_Fig_7.py`
-* `Ext_Fig_8.py`
-* `Ext_Fig_9.py`
-* `Ext_Fig_10.py`
-* `Supp_Table_1.py`
+* `Fig_S1.py`
+* `Fig_S2.py`
+* `Fig_S3.py`
+* `Fig_S4.py`
+* `Fig_S5.py`
+* `Fig_S6.py`
+* `Fig_S7.py`
+* `Fig_S8.py`
+* `Fig_S9.py`
+* `Fig_S10.py`
+* `Table_S2.py`
+* `Table_S3.py`
+* `Table_S4.py`
+* `Table_S5.py`
 
 
 Run a demo version
@@ -110,10 +112,10 @@ A demo version fo the entire workflow can be run. After having downloaded the pr
 ```
 
 The demo version can be run in two ways:
-*  download and build a small dataset and then train the DNNs on those data
-* start directly with training the DNNs on the same small dataset already downloaded and processed
+*  download and create a small dataset and then train the DNNs on those data
+* start directly with training the DNNs on the same small dataset already downloaded and processed (present in *Demo_no_download*)
 
-In both cases, the workflow will be executed for CNRM-ESM2-1, FGOALS-f3-L and MIROC6 ESMs simulations and for the SSP2-4.5 scenario.
+In both cases, the workflow will be executed for CNRM-ESM2-1, FGOALS-f3-L and MIROC6 ESMs simulations and for SSP2-4.5.
 ### Data downloading and processing + training
 To this aim, the BEST observative maps used in this study (i.e., Global Monthly Land + Ocean — Average Temperature with Air Temperatures at Sea Ice (Recommended; 1850 – Recent) — 1º x 1º Latitude-Longitude Grid) should be gathered from the <a href="https://berkeleyearth.org/data/">BEST archive</a> (direct download: <a href="https://berkeley-earth-temperature.s3.us-west-1.amazonaws.com/Global/Gridded/Land_and_Ocean_LatLong1.nc">1º x 1º Latitude-Longitude Grid (~400 MB)</a>) . The file must be named `BEST_2022.nc` and placed in `root/Demo_download/Data/BEST_data`. \
 Since CMIP6 data were gathered from the Copernicus Climate Data Store (CDS), the CDS API key should be configured on your laptop according to the <a href="https://cds.climate.copernicus.eu/api-how-to">CDS API documentation</a> before downloading them. \
@@ -127,7 +129,7 @@ Now, the scripts should be executed in the following order:
 3. `BEST_data_add_gaussian_noise.py` to add noise to the BEST observative maps. Specifically, the noise is sampled from a Gaussian distribution with 0 mean and stddev equal to the BEST observative data uncertainty. The addition of noise is repeated 5 times for each ESM and each scenario. The resulting files will be saved in `root/Demo_download/Data/BEST_data/gaussian_noise_5`.
 4. `First_Training.py` to train an individual DNN on the simulation of one of the three ESMs for the SSP2-4.5 scenario. A total of three DNNs are trained, each with the same architecture. The results will be saved in `root/Demo_download/Experiments/First_Training/First_Training_[date-time]`.
 5. `Transfer_learning_simulations.py` to load the pre-trained DNNs and transfer learn them on the ESMs simulations according to the LOO-CV procedure. The variable `FIRST_TRAINING_DIRECTORY` in `Transfer_learning_simulations.py` should be set to the directory name related to the first training (i.e. `FIRST_TRAINING_DIRECTORY = First_Training_[date-time]`). This is necessary to load the pre-trained DNNs. The variable `exclude_family_members` in `variables.py`should be set `True` if the ESMs based on the same atmospheric model as the take-out ESM must be excluded in each iteration of the LOO-CV procedure. The results will be saved in `root/Demo_download/Experiments/Transfer_Learning_on_Simulations/Transfer_learning_[date-time]/Shuffle_[number]`. The `Shuffle_[number]` corresponds to an iteration of the LOO-CV procedure.
-6. `Transfer_learning_observations.py` to load the pre-trained DNNs and transfer learn them on the BEST observative data. The variable `FIRST_TRAINING_DIRECTORY` in `Transfer_learning_simulations.py` must be set to the directory name related to the first training (i.e. `FIRST_TRAINING_DIRECTORY = First_Training_[date-time]`). This is necessary to load the pre-trained DNNs. The results will be saved in `root/Demo_download/Experiments/Transfer_Learning_on_Observations/Transfer_learning_obs_[date-time]`.
+6. `Transfer_learning_observations.py` to load the pre-trained DNNs and transfer learn them on the BEST observative data. The variable `FIRST_TRAINING_DIRECTORY` in `Transfer_learning_observations.py` must be set to the directory name related to the first training (i.e. `FIRST_TRAINING_DIRECTORY = First_Training_[date-time]`). This is necessary to load the pre-trained DNNs. The results will be saved in `root/Demo_download/Experiments/Transfer_Learning_on_Observations/Transfer_learning_obs_[date-time]`.
 
 ### Training (without downloading and processing)
 A demo version can be run directly starting with training the DNNs on the CNRM-ESM2-1, FGOALS-f3-L and MIROC6 models simulations. \
@@ -138,7 +140,7 @@ In this case, the following variables in `variables.py` should be set to:
 Now, the scripts should be executed in the following order:
 1. `First_Training.py` to train an individual DNN on one of the three ESMs simulation for the SSP2-4.5 scenario. A total of three DNNs will be trained, each with the same architecture. The results will be saved in `root/Demo_no_download/Experiments/First_Training/First_Training_[date-time]`.
 2. `Transfer_learning_simulations.py` to load pre-trained DNNs and transfer learn them on the ESMs simulations according to the LOO-CV procedure. The variable `FIRST_TRAINING_DIRECTORY` in `Transfer_learning_simulations.py` must be set to the directory name related to the first training (i.e. `FIRST_TRAINING_DIRECTORY = First_Training_[date-time]`). This is necessary to load the pre-trained DNNs. The variable `exclude_family_members` in `variables.py`should be set `True` if the ESMs based on the same atmospheric model as the take-out ESM must be excluded in each iteration of the LOO-CV procedure. The results will be saved in `root/Demo_no_download/Experiments/Transfer_Learning_on_Simulations/Transfer_learning_[date-time]/Shuffle_[number]`. The `Shuffle_[number]` corresponds to an iteration of the LOO-CV procedure.
-3. `Transfer_learning_observations.py` to load the pre-trained DNNs and transfer learn them on the BEST observative data. The variable `FIRST_TRAINING_DIRECTORY` in `Transfer_learning_simulations.py` must be set to the directory name related to the first training (i.e. `FIRST_TRAINING_DIRECTORY = First_Training_[date-time]`). This is necessary to load the pre-trained DNNs. The results will be saved in `root/Demo_no_download/Experiments/Transfer_Learning_on_Observations/Transfer_learning_obs_[date-time]`.
+3. `Transfer_learning_observations.py` to load the pre-trained DNNs and transfer learn them on the BEST observative data. The variable `FIRST_TRAINING_DIRECTORY` in `Transfer_learning_observations.py` must be set to the directory name related to the first training (i.e. `FIRST_TRAINING_DIRECTORY = First_Training_[date-time]`). This is necessary to load the pre-trained DNNs. The results will be saved in `root/Demo_no_download/Experiments/Transfer_Learning_on_Observations/Transfer_learning_obs_[date-time]`.
 
 The Demo software was tested on a MacBook M2 Pro equipped with MacOS Ventura 13.4.1. The expected run times are the following:
 * `CMIP6_download_process.py`: about 12 seconds (after the CMIP6 data download)
@@ -149,7 +151,7 @@ The Demo software was tested on a MacBook M2 Pro equipped with MacOS Ventura 13.
 Run the full version
 --------------------
 
-The full version of the entire workflow can be run. After having downloaded `BEST_data.zip` and `CMIP6_data.zip` from <a href="https://zenodo.org/records/10512548
+The full version of the entire workflow can be run. After having downloaded `BEST_data.zip` and `CMIP6_data.zip` from <a href="https://zenodo.org/records/10818730
 ">Zenodo</a>, the files needed to run the entire workflow shall be organized as the following hierarchy:
 
 ```plain
@@ -173,15 +175,15 @@ The full version of the entire workflow can be run. After having downloaded `BES
 
 ```
 
-The full version will be run by training the DNNs on the 22 ESMs simulations for SSP2-4.5, 3-7.0, and 5-8.5 scenarios. \
+The full version will be run by training the DNNs on the 22 ESMs simulations for SSPs 2-4.5, 3-7.0, and 5-8.5. \
 In this case, the following variables in `variables.py` must be set to:
 * `demo_download = False`
 * `demo_no_download = False`
 
 Now, the scripts should be executed in the following order:
-1. `First_Training.py` to train an individual DNN on one of the 22 ESMs simulation for the SSP2-4.5, 3-7.0, and 5-8.5 scenarios. A total of 66 DNNs will be trained, each with the same architecture. The results will be saved in `root/Experiments/First_Training/First_Training_[date-time]`.
+1. `First_Training.py` to train an individual DNN on one of the 22 ESMs simulation for the SSPs 2-4.5, 3-7.0, and 5-8.5. A total of 66 DNNs will be trained, each with the same architecture. The results will be saved in `root/Experiments/First_Training/First_Training_[date-time]`.
 2. `Transfer_learning_simulations.py` to load the pre-trained DNNs and transfer learn them on the ESMs simulations according to the LOO-CV procedure. The variable `FIRST_TRAINING_DIRECTORY` in `Transfer_learning_simulations.py` should be set to the directory name related to the first training (i.e. `FIRST_TRAINING_DIRECTORY = First_Training_[date-time]`). This is necessary to load the pre-trained models. The variable `exclude_family_members` in `variables.py`should be set `True` if the ESMs based on the same atmospheric model as the take-out ESM must be excluded in each iteration of the LOO-CV procedure. The results will be saved in `root/Experiments/Transfer_Learning_on_Simulations/Transfer_learning_[date-time]/Shuffle_[number]`. The `Shuffle_[number]` corresponds to an iteration of the LOO-CV approach.
-3. `Transfer_learning_observations.py` to load the pre-trained DNNs and transfer learn them on the BEST observative data. The variable `FIRST_TRAINING_DIRECTORY` in `Transfer_learning_simulations.py` should be set to the directory name of the first training (i.e. `FIRST_TRAINING_DIRECTORY = First_Training_[date-time]`). This is necessary to load the pre-trained models. The results will be saved in `root/Experiments/Transfer_Learning_on_Observations/Transfer_learning_obs_[date-time]`.
+3. `Transfer_learning_observations.py` to load the pre-trained DNNs and transfer learn them on the BEST observative data. The variable `FIRST_TRAINING_DIRECTORY` in `Transfer_learning_observations.py` should be set to the directory name of the first training (i.e. `FIRST_TRAINING_DIRECTORY = First_Training_[date-time]`). This is necessary to load the pre-trained models. The results will be saved in `root/Experiments/Transfer_Learning_on_Observations/Transfer_learning_obs_[date-time]`.
 
 The models resulting from transfer learning on BEST observative data and used to predict temperature values up to 2098 can be downloaded from <a href="https://huggingface.co/francesco-immorlano/Transferring-climate-change-knowledge-models/tree/main">Hugging Face</a>
 
@@ -195,23 +197,26 @@ The figures and the results present in the paper can be reproduced. After having
 ├── root
 │   ├── area_cella.csv
 │   ├── Figures
-│   │   ├── Ext_Fig_1.py
-│   │   ├── Ext_Fig_2.py
-│   │   ├── Ext_Fig_3.py
-│   │   ├── Ext_Fig_4.py
-│   │   ├── Ext_Fig_5.py
-│   │   ├── Ext_Fig_6.py
-│   │   ├── Ext_Fig_7.py
-│   │   ├── Ext_Fig_8.py
-│   │   ├── Ext_Fig_9.py
-│   │   ├── Ext_Fig_10.py
+│   │   ├── Fig_S1.py
+│   │   ├── Fig_S2.py
+│   │   ├── Fig_S3.py
+│   │   ├── Fig_S4.py
+│   │   ├── Fig_S5.py
+│   │   ├── Fig_S6.py
+│   │   ├── Fig_S7.py
+│   │   ├── Fig_S8.py
+│   │   ├── Fig_S9.py
+│   │   ├── Fig_S10.py
 │   │   ├── Fig_1.py
 │   │   ├── Fig_2.py
 │   │   ├── Fig_3.py
 │   │   ├── Fig_4.py
 │   │   ├── lats.pickle
 │   │   ├── lons.pickle
-│   │   ├── Supp_Table_1.py
+│   │   ├── Table_S2.py
+│   │   ├── Table_S3.py
+│   │   ├── Table_S4.py
+│   │   ├── Table_S5.py
 │   ├── Source_data
 │   │   ├── BEST_data
 │   │   ├── CMIP6_data
@@ -225,10 +230,10 @@ The figures and the results present in the paper can be reproduced. After having
 
 * `First_Training_obs` &rarr; Near-surface air temperature maps generated by the DNNs trained on the BEST observative data from 1979 to 2022
 * `First_Training` &rarr; Near-surface air temperature maps generated by the DNNs trained on the 22 ESMs simulations under SSP2-4.5, 3-7.0, and 5-8.5 scenarios
-* `Transfer_Learning_on_Observations` &rarr; Near-surface air temperature maps generated by the DNNs after transfer learning on BEST oobservative data
-* `Transfer_Learning_on_Simulations_AM_families` &rarr; Near-surface air temperature maps generated by the DNNs after transfer learning on the 22 ESMs simulations under SSP2-4.5, 3-7.0, and 5-8.5 scenarios (LOO-CV procedure). Those ESMs based on the same atmospheric model as the take-out ESM were excluded in each iteration of the LOO-CV procedure
+* `Transfer_Learning_on_Observations` &rarr; Near-surface air temperature maps generated by the DNNs after transfer learning on BEST observative data
+* `Transfer_Learning_on_Simulations_AM_families` &rarr; Near-surface air temperature maps generated by the DNNs after transfer learning on the 22 ESMs simulations under SSPs 2-4.5, 3-7.0, and 5-8.5 (LOO-CV procedure). Those ESMs based on the same atmospheric model as the taken-out ESM (i.e., belonging to the same atmospheric model family) were excluded in each iteration of the LOO-CV procedure
 * `Transfer_Learning_on_Simulations_reverse` &rarr; Near-surface air temperature maps generated by the DNNs after the reverse LOO-CV procedure. The pre-trained DNNs were transfer learned on the 22 ESMs simulations under SSP2-4.5, 3-7.0, and 5-8.5 scenarios, by using 2023–2098 as training set and 1850–2022 as test set
-* `Transfer_Learning_on_Simulations` &rarr; Near-surface air temperature maps generated by the DNNs after transfer learning on the 22 ESMs simulations under SSP2-4.5, 3-7.0, and 5-8.5 scenarios (LOO-CV procedure)
+* `Transfer_Learning_on_Simulations` &rarr; Near-surface air temperature maps generated by the DNNs after transfer learning on the 22 ESMs simulations under SSPs 2-4.5, 3-7.0, and 5-8.5 (LOO-CV procedure)
 
 
 The following scripts should be used to reproduce the figures and compute the values for Supplementary Table 1 present in the paper:
@@ -236,17 +241,20 @@ The following scripts should be used to reproduce the figures and compute the va
 * `Fig_2.py`
 * `Fig_3.py`
 * `Fig_4.py`
-* `Ext_Fig_1.py`
-* `Ext_Fig_2.py`
-* `Ext_Fig_3.py`
-* `Ext_Fig_4.py`
-* `Ext_Fig_5.py`
-* `Ext_Fig_6.py`
-* `Ext_Fig_7.py`
-* `Ext_Fig_8.py`
-* `Ext_Fig_9.py`
-* `Ext_Fig_10.py`
-* `Supp_Table_1.py`
+* `Fig_S1.py`
+* `Fig_S2.py`
+* `Fig_S3.py`
+* `Fig_S4.py`
+* `Fig_S5.py`
+* `Fig_S6.py`
+* `Fig_S7.py`
+* `Fig_S8.py`
+* `Fig_S9.py`
+* `Fig_S10.py`
+* `Table_S2.py`
+* `Table_S3.py`
+* `Table_S4.py`
+* `Table_S5.py`
 
 Contributors
 ------------
