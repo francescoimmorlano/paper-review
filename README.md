@@ -1,4 +1,4 @@
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.10818730.svg)](https://doi.org/10.5281/zenodo.10818730)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.10878984.svg)](https://doi.org/10.5281/zenodo.10878984)
 
 Transferring climate change knowledge
 =====================================
@@ -63,20 +63,20 @@ The following scripts must be used to reproduce the figures and compute the valu
 * `Fig_2.py`
 * `Fig_3.py`
 * `Fig_4.py`
-* `Fig_S1.py`
-* `Fig_S2.py`
-* `Fig_S3.py`
-* `Fig_S4.py`
-* `Fig_S5.py`
-* `Fig_S6.py`
-* `Fig_S7.py`
-* `Fig_S8.py`
-* `Fig_S9.py`
-* `Fig_S10.py`
-* `Table_S2.py`
-* `Table_S3.py`
-* `Table_S4.py`
-* `Table_S5.py`
+* `Extended_Data_Fig_1.py`
+* `Extended_Data_Fig_2.py`
+* `Extended_Data_Fig_3.py`
+* `Extended_Data_Fig_4.py`
+* `Extended_Data_Fig_5.py`
+* `Extended_Data_Fig_6.py`
+* `Extended_Data_Fig_7.py`
+* `Extended_Data_Fig_8.py`
+* `Extended_Data_Fig_9.py`
+* `Extended_Data_Fig_10.py`
+* `Supplementary_Table_2.py`
+* `Supplementary_Table_3.py`
+* `Supplementary_Table_4.py`
+* `Supplementary_Table_5.py`
 
 
 Run a demo version
@@ -151,7 +151,7 @@ The Demo software was tested on a MacBook M2 Pro equipped with MacOS Ventura 13.
 Run the full version
 --------------------
 
-The full version of the entire workflow can be run. After having downloaded `BEST_data.zip` and `CMIP6_data.zip` from <a href="https://zenodo.org/records/10818730
+The full version of the entire workflow can be run. After having downloaded `BEST_data.zip` and `CMIP6_data.zip` from <a href="https://doi.org/10.5281/zenodo.10878984
 ">Zenodo</a>, the files needed to run the entire workflow shall be organized as the following hierarchy:
 
 ```plain
@@ -185,38 +185,36 @@ Now, the scripts should be executed in the following order:
 2. `Transfer_learning_simulations.py` to load the pre-trained DNNs and transfer learn them on the ESMs simulations according to the LOO-CV procedure. The variable `FIRST_TRAINING_DIRECTORY` in `Transfer_learning_simulations.py` should be set to the directory name related to the first training (i.e. `FIRST_TRAINING_DIRECTORY = First_Training_[date-time]`). This is necessary to load the pre-trained models. The variable `exclude_family_members` in `variables.py`should be set `True` if the ESMs based on the same atmospheric model as the take-out ESM must be excluded in each iteration of the LOO-CV procedure. The results will be saved in `root/Experiments/Transfer_Learning_on_Simulations/Transfer_learning_[date-time]/Shuffle_[number]`. The `Shuffle_[number]` corresponds to an iteration of the LOO-CV approach.
 3. `Transfer_learning_observations.py` to load the pre-trained DNNs and transfer learn them on the BEST observative data. The variable `FIRST_TRAINING_DIRECTORY` in `Transfer_learning_observations.py` should be set to the directory name of the first training (i.e. `FIRST_TRAINING_DIRECTORY = First_Training_[date-time]`). This is necessary to load the pre-trained models. The results will be saved in `root/Experiments/Transfer_Learning_on_Observations/Transfer_learning_obs_[date-time]`.
 
-The models resulting from transfer learning on BEST observative data and used to predict temperature values up to 2098 can be downloaded from <a href="https://huggingface.co/francesco-immorlano/Transferring-climate-change-knowledge-models/tree/main">Hugging Face</a>
-
 Reproduce the results present in the paper
 ------------------------------------------
 
-The figures and the results present in the paper can be reproduced. After having downloaded `BEST_data.zip`, `CMIP6_data.zip`, `First_training_obs.zip`, `First_Training.zip`, `Transfer_Learning_on_Observations.zip`, `Transfer_Learning_on_Simulations_AM_families.zip`, `Transfer_Learning_on_Simulations_reverse.zip`, and `Transfer_Learning_on_Simulations.zip` from <a href="https://zenodo.org/records/10512548
+The figures and the results present in the paper can be reproduced. After having downloaded `BEST_data.zip`, `CMIP6_data.zip`, `First_training_obs.zip`, `First_Training.zip`, `Transfer_Learning_on_Observations.zip`, `Transfer_Learning_on_Simulations_AM_families.zip`, `Transfer_Learning_on_Simulations_reverse.zip`, and `Transfer_Learning_on_Simulations.zip` from <a href="https://doi.org/10.5281/zenodo.10878984
 ">Zenodo</a>, the files needed to reproduce the results shall be organized as the following hierarchy:
 
 ```plain
 ├── root
 │   ├── area_cella.csv
 │   ├── Figures
-│   │   ├── Fig_S1.py
-│   │   ├── Fig_S2.py
-│   │   ├── Fig_S3.py
-│   │   ├── Fig_S4.py
-│   │   ├── Fig_S5.py
-│   │   ├── Fig_S6.py
-│   │   ├── Fig_S7.py
-│   │   ├── Fig_S8.py
-│   │   ├── Fig_S9.py
-│   │   ├── Fig_S10.py
+│   │   ├── Extended_Data_Fig_1.py
+│   │   ├── Extended_Data_Fig_2.py
+│   │   ├── Extended_Data_Fig_3.py
+│   │   ├── Extended_Data_Fig_4.py
+│   │   ├── Extended_Data_Fig_5.py
+│   │   ├── Extended_Data_Fig_6.py
+│   │   ├── Extended_Data_Fig_7.py
+│   │   ├── Extended_Data_Fig_8.py
+│   │   ├── Extended_Data_Fig_9.py
+│   │   ├── Extended_Data_Fig_10.py
 │   │   ├── Fig_1.py
 │   │   ├── Fig_2.py
 │   │   ├── Fig_3.py
 │   │   ├── Fig_4.py
 │   │   ├── lats.pickle
 │   │   ├── lons.pickle
-│   │   ├── Table_S2.py
-│   │   ├── Table_S3.py
-│   │   ├── Table_S4.py
-│   │   ├── Table_S5.py
+│   │   ├── Supplementary_Table_2.py
+│   │   ├── Supplementary_Table_3.py
+│   │   ├── Supplementary_Table_4.py
+│   │   ├── Supplementary_Table_5.py
 │   ├── Source_data
 │   │   ├── BEST_data
 │   │   ├── CMIP6_data
@@ -241,20 +239,20 @@ The following scripts should be used to reproduce the figures and compute the va
 * `Fig_2.py`
 * `Fig_3.py`
 * `Fig_4.py`
-* `Fig_S1.py`
-* `Fig_S2.py`
-* `Fig_S3.py`
-* `Fig_S4.py`
-* `Fig_S5.py`
-* `Fig_S6.py`
-* `Fig_S7.py`
-* `Fig_S8.py`
-* `Fig_S9.py`
-* `Fig_S10.py`
-* `Table_S2.py`
-* `Table_S3.py`
-* `Table_S4.py`
-* `Table_S5.py`
+* `Extended_Data_Fig_1.py`
+* `Extended_Data_Fig_2.py`
+* `Extended_Data_Fig_3.py`
+* `Extended_Data_Fig_4.py`
+* `Extended_Data_Fig_5.py`
+* `Extended_Data_Fig_6.py`
+* `Extended_Data_Fig_7.py`
+* `Extended_Data_Fig_8.py`
+* `Extended_Data_Fig_9.py`
+* `Extended_Data_Fig_10.py`
+* `Supplementary_Table_2.py`
+* `Supplementary_Table_3.py`
+* `Supplementary_Table_4.py`
+* `Supplementary_Table_5.py`
 
 Contributors
 ------------
