@@ -4,100 +4,17 @@ Author: Francesco Immorlano
 Script for reproducing Figure 3
 """
 
-import os
-from netCDF4 import Dataset
-import numpy as np
-import matplotlib.pyplot as plt
-import pickle
+import sys
+sys.path.insert(1, './..')
+from lib import *
 
-models_list = [
-        'ACCESS-CM2',
-        'AWI-CM-1-1-MR',
-        'BCC-CSM2-MR',
-        'CAMS-CSM1-0',
-        'CanESM5-CanOE',
-        'CMCC-CM2-SR5',
-        'CNRM-CM6-1',
-        'CNRM-ESM2-1',
-        'FGOALS-f3-L',
-        'FGOALS-g3',
-        'GFDL-ESM4',
-        'IITM-ESM',
-        'INM-CM4-8',
-        'INM-CM5-0',
-        'IPSL-CM6A-LR',
-        'KACE-1-0-G',
-        'MIROC6',
-        'MPI-ESM1-2-LR',
-        'MRI-ESM2-0',
-        'NorESM2-MM',
-        'TaiESM1',
-        'UKESM1-0-LL'
-        ]
-
-short_scenarios_list = ['ssp245', 'ssp370', 'ssp585']
-variable_short = 'tas'
-
-ROOT_DATA = '../Source_data'
-SIMULATIONS_DIRECTORY = f'{ROOT_DATA}/CMIP6_data/near_surface_air_temperature/Annual_uniform_remapped'
-PATH_BEST_DATA = f'{ROOT_DATA}/BEST_data/BEST_regridded_annual_1979-2022.nc'
-PATH_BEST_DATA_UNCERTAINTY = f'{ROOT_DATA}/BEST_data/Land_and_Ocean_global_average_annual.txt'
-
-total_earth_area = 5.1009974e+14
-# Avg global surface temperature in 1995-2014
-global_mean_temp_1995_2014 = 14.711500000000001
-with open('../area_cella.csv', newline='') as csvfile:
-    area_cella = np.genfromtxt(csvfile, delimiter=',')
-
-n_BEST_datasets_per_model_scenario = 5
-
-start_year_training = 1979
-end_year_training = 2022
-n_training_years = end_year_training-start_year_training+1
-start_year_test = end_year_training+1
-end_year_test = 2098
-n_test_years = end_year_test-start_year_test+1
-
-# settings for modern reference time period and proxy for pre-industrial time period
-refperiod_start = 1995
-refperiod_end   = 2014
-piperiod_start  = 1850
-piperiod_end    = 1900
-
-# historical warming estimate based on cross-chapter box 2.3 (https://www.ipcc.ch/report/ar6/wg1/downloads/report/IPCC_AR6_WGI_Chapter02.pdf)
-refperiod_conversion = 0.85
+plot_figure_paper = True
 
 """ Load DNNs predictions """
-predictions = np.zeros((n_BEST_datasets_per_model_scenario, len(models_list), len(short_scenarios_list), n_training_years+n_test_years, 64, 128))
-pickle_in = open(f'{ROOT_DATA}/Transfer_Learning_on_Observations/Transfer_learning_obs.pickle','rb')
-predictions = pickle.load(pickle_in)
+predictions = read_tl_obs_predictions(n_BEST_datasets_per_model_scenario, plot_figure_paper)
 
 """ Load CMIP6 ESMs simulations """
-simulation_array = np.zeros((len(models_list), len(short_scenarios_list), 249, 64, 128))
-for model_idx, model in enumerate(models_list):
-    for scenario_idx, scenario_short in enumerate(short_scenarios_list):
-        # CMIP6 ESMs simulations
-        simulations_files_list = os.listdir(SIMULATIONS_DIRECTORY)
-        simulations_files_list.sort()
-        matching_simulations = [simulation_file for simulation_file in simulations_files_list if ((model in simulation_file and 'historical' in simulation_file)
-                                                                                                or (model in simulation_file and scenario_short in simulation_file))]
-        # maching_simuations[0] is the historical and matching_simulations[1] is the SSP simulation because of the sort operation
-        # (for each model, the first simulation is the historical and then the SSP) 
-        nc_historical_data = Dataset(f'{SIMULATIONS_DIRECTORY}/{matching_simulations[0]}', mode='r+', format='NETCDF3_CLASSIC')
-        nc_ssp_data = Dataset(f'{SIMULATIONS_DIRECTORY}/{matching_simulations[1]}', mode='r+', format='NETCDF3_CLASSIC')
-        n_historical_years = nc_historical_data[variable_short].shape[0]
-        n_ssp_years = nc_ssp_data[variable_short].shape[0]
-        n_lats = nc_ssp_data['lat'].shape[0]
-        n_lons = nc_ssp_data['lon'].shape[0]
-        simulation_array[model_idx, scenario_idx,:n_historical_years] = nc_historical_data[variable_short][:]
-        if (n_ssp_years == 86):
-            simulation_array[model_idx,scenario_idx,n_historical_years:] = nc_ssp_data[variable_short][:-2]
-        elif (n_ssp_years == 85):
-            simulation_array[model_idx,scenario_idx,n_historical_years:] = nc_ssp_data[variable_short][:-1]
-        elif (n_ssp_years == 84):
-            simulation_array[model_idx,scenario_idx,n_historical_years:] = nc_ssp_data[variable_short][:]
-        nc_historical_data.close()
-        nc_ssp_data.close()
+simulation_array = read_all_cmip6_simulations()
 
 # Convert from K to Celsius degrees
 predictions_C = predictions - 273.15
@@ -116,13 +33,13 @@ warming_predictions_means_2081_2098 = warming_predictions_means[:,:,:,2081-1979:
 warming_simulations_means_2081_2098 = warming_simulations_means[:,:,2081-1850:]
 
 # Compute median, 5% and 95%
-median_predictions_means_2081_2098 = np.zeros((len(short_scenarios_list),18))
-median_simulations_means_2081_2098 = np.zeros((len(short_scenarios_list),18))
-q05_predictions_means_2081_2098 = np.zeros((len(short_scenarios_list),18))
-q05_simulations_means_2081_2098 = np.zeros((len(short_scenarios_list),18))
-q95_predictions_means_2081_2098 = np.zeros((len(short_scenarios_list),18))
-q95_simulations_means_2081_2098 = np.zeros((len(short_scenarios_list),18))
-for short_scenario_idx, short_scenario in enumerate(short_scenarios_list):
+median_predictions_means_2081_2098 = np.zeros((len(short_scenarios_list_complete),18))
+median_simulations_means_2081_2098 = np.zeros((len(short_scenarios_list_complete),18))
+q05_predictions_means_2081_2098 = np.zeros((len(short_scenarios_list_complete),18))
+q05_simulations_means_2081_2098 = np.zeros((len(short_scenarios_list_complete),18))
+q95_predictions_means_2081_2098 = np.zeros((len(short_scenarios_list_complete),18))
+q95_simulations_means_2081_2098 = np.zeros((len(short_scenarios_list_complete),18))
+for short_scenario_idx, short_scenario in enumerate(short_scenarios_list_complete):
     # DNNs predictions
     for i in range(18):
         median_predictions_means_2081_2098[short_scenario_idx,i] = np.median(np.ravel(warming_predictions_means_2081_2098[:,:,short_scenario_idx,i]))
@@ -186,7 +103,6 @@ for idx_short_scenario, scenario_short in enumerate(short_scenarios_list):
 
 """ Plot """
 fig, axes = plt.subplots(1, figsize=(10,10))
-plt.rcParams.update({'font.sans-serif': 'Arial'})
 xpos = [1,2,3]
 xlabel = ['SSP2-4.5','SSP3-7.0','SSP5-8.5']
 barwidth = 0.17
