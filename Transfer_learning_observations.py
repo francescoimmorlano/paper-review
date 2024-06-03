@@ -8,60 +8,23 @@ from tensorflow.keras.models import load_model
 from tensorflow.keras import backend as K
 from tensorflow.keras.optimizers.legacy import Adam 
 from keras.callbacks import Callback
-from netCDF4 import Dataset
-import numpy as np
-import pandas as pd
-import os
-from datetime import datetime
-import matplotlib.pyplot as plt
 import time
-from datetime import datetime
 from datetime import timedelta
 import csv
 from lib import *
-from variables import *
 
-ts = datetime.now()
-ts_human = ts.strftime('%Y-%m-%d_%H-%M-%S')
 print(f'\n******************************************* Transfer_learning_obs_{ts_human} *******************************************')
 
-loss = 'mae'
 
-##################### CALLBACKS #####################
-save_predictions_on_validation_set = True
+shuffle = (False, 42)
 
 compute_validation = True
 
-n_BEST_datasets_per_model_scenario = 5
-
-shuffling_dataset = (False, 42)
-scale_input = True
-scale_output = True
-
-feature_range = (0,1)
-n_channels = 1
-
 # First training directory (only the directory name)
-FIRST_TRAINING_DIRECTORY = 'First_Training_2024-03-14_09-26-50'
+FIRST_TRAINING_DIRECTORY = ''
 
-epochs = 2
-batch_size = 16
+optim = Adam(learning_rate=lr_tl, beta_1=0.9, beta_2=0.999, epsilon=1e-8)
 
-lr = 1e-5
-optim = Adam(learning_rate=lr, beta_1=0.9, beta_2=0.999, epsilon=1e-8)
-
-start_year_training = 1979
-end_year_training = 2022
-start_year_test = end_year_training + 1
-end_year_test = 2098
-# Years reserved for validation
-val_years_list = [2017, 2018, 2019, 2020]
-
-n_training_years = end_year_training - start_year_training + 1
-n_test_years = end_year_test - start_year_test + 1
-
-CO2eq_climate_model = 'MCE-v1-2'
-withAerosolForcing = True
 
 class PerformancePlotCallback(Callback):
     def __init__(self, val_X, val_y, val_year, model_name, short_scenario, scenario, y_min, y_max, path_to_save):
@@ -105,16 +68,6 @@ else:
 
 columns_model_hyperparameters_df = ['transf_learn_directory', 'first_train_directory', 'end_year_training', 'model', 'scenario', 'date_time', 'elapsed_loop_time', 'elapsed_train_time', 'epochs', 'batch_size', 'learning_rate', 'shuffle', 'scale_input', 'scale_output', 'norm_min', 'norm_max', 'y_min', 'y_max', 'CO2eq_climate_model', 'withAerosolForcing', 'use_observations']
 
-if demo_download:
-    ROOT_EXPERIMENTS = './Demo_download'
-    ROOT_DATA = './Demo_download/Data'
-elif demo_no_download:
-    ROOT_EXPERIMENTS = './Demo_no_download'
-    ROOT_DATA = './Demo_no_download/Data'
-else:
-    ROOT_EXPERIMENTS = '.'
-    ROOT_DATA = f'./Source_data'
-
 PATH_TRAINED_MODELS = f'{ROOT_EXPERIMENTS}/Experiments/First_Training/{FIRST_TRAINING_DIRECTORY}/Models'
 PATH_TRANSFER_LEARNING_ON_OBSERVATIONS = f'{ROOT_EXPERIMENTS}/Experiments/Transfer_Learning_on_Observations/Transfer_learning_obs_{ts_human}'
 PATH_HISTORIES = f'{PATH_TRANSFER_LEARNING_ON_OBSERVATIONS}/Histories'
@@ -130,24 +83,19 @@ if not os.path.exists(PATH_HYPERPARAMETERS): os.mkdir(PATH_HYPERPARAMETERS)
 trained_models_list = os.listdir(PATH_TRAINED_MODELS)
 trained_models_list.sort()
 
-_, X_ssp245, _ = read_CO2_equivalent('./', 'ssp245', CO2eq_climate_model, withAerosolForcing)
-_, X_ssp370, _ = read_CO2_equivalent('./', 'ssp370', CO2eq_climate_model, withAerosolForcing)
-_, X_ssp585, _ = read_CO2_equivalent('./', 'ssp585', CO2eq_climate_model, withAerosolForcing)
-
-# Since we are considering observations, we use CO2eq values from 1979 up to 2098
-X_ssp245_1979_2022 = X_ssp245[start_year_training-1850:]
-X_ssp370_1979_2022 = X_ssp370[start_year_training-1850:]
-X_ssp585_1979_2022 = X_ssp585[start_year_training-1850:]
+_, X_ssp245, _ = read_CO2_equivalent('./', 'ssp245', CO2eq_climate_model, withAerosolForcing, start_year_training_tl_obs)
+_, X_ssp370, _ = read_CO2_equivalent('./', 'ssp370', CO2eq_climate_model, withAerosolForcing, start_year_training_tl_obs)
+_, X_ssp585, _ = read_CO2_equivalent('./', 'ssp585', CO2eq_climate_model, withAerosolForcing, start_year_training_tl_obs)
 
 X_ssp_list = []
-X_ssp_list.append(X_ssp245_1979_2022)
-X_ssp_list.append(X_ssp370_1979_2022)
-X_ssp_list.append(X_ssp585_1979_2022)
+X_ssp_list.append(X_ssp245)
+X_ssp_list.append(X_ssp370)
+X_ssp_list.append(X_ssp585)
 
-return_list = compute_values_for_scaling(X_ssp_list)
-
-X_min_list = return_list[0]
-X_max_list = return_list[1]
+if scale_input:
+    return_list = compute_values_for_scaling(X_ssp_list)
+    X_min_list = return_list[0]
+    X_max_list = return_list[1]
 
 
 for idx_model, model  in enumerate(models_list):
@@ -164,16 +112,7 @@ for idx_model, model  in enumerate(models_list):
 
                 start_time = time.time()
 
-                PATH_BEST_DATA = f'{ROOT_DATA}/BEST_data/gaussian_noise_{n_BEST_datasets_per_model_scenario}/BEST_regridded_annual_1979-2022_Gaussian_noise_{model}_{scenario_short}_{i}.nc'
-                
-                nc_BEST_data = Dataset(f'{PATH_BEST_DATA}', mode='r+', format='NETCDF3_CLASSIC')
-                n_BEST_years = nc_BEST_data['st'].shape[0]
-                n_lats = nc_BEST_data['lat'].shape[0]
-                n_lons = nc_BEST_data['lon'].shape[0]
-
-                BEST_data_array = np.zeros((n_BEST_years, n_lats, n_lons))
-                BEST_data_array[:,:,:] = nc_BEST_data['st'][:,:,:]
-                nc_BEST_data.close()
+                BEST_data_array = read_BEST_data(f'{ROOT_SOURCE_DATA}/BEST_data/gaussian_noise_{n_BEST_datasets_per_model_scenario}/BEST_regridded_annual_1979-2022_Gaussian_noise_{model}_{scenario_short}_{i}.nc')
 
                 PATH_TEST_SET_PREDICTIONS = f'{PATH_PLOTS}/Test_set_predictions/{variable_short}_{model}_{scenario_short}_{i}'
                 PATH_TRAINING_SET_PREDICTIONS = f'{PATH_PLOTS}/Training_set_predictions/{variable_short}_{model}_{scenario_short}_{i}'
@@ -182,36 +121,36 @@ for idx_model, model  in enumerate(models_list):
                 if not os.path.exists(PATH_TRAINING_SET_PREDICTIONS): os.makedirs(PATH_TRAINING_SET_PREDICTIONS)
                 if not os.path.exists(PATH_PREDICTIONS_YEAR_2021): os.makedirs(PATH_PREDICTIONS_YEAR_2021)
 
-                train_X = np.array(X_ssp_list[idx_short_scenario][:n_training_years])
-                train_X = train_X.reshape(n_training_years,1,1)
+                train_X = np.array(X_ssp_list[idx_short_scenario][:n_training_years_tl_obs])
+                train_X = train_X.reshape(n_training_years_tl_obs,1,1)
 
-                test_X = np.array(X_ssp_list[idx_short_scenario][n_training_years:n_training_years+n_test_years])
-                test_X = test_X.reshape(n_test_years,1,1)
+                test_X = np.array(X_ssp_list[idx_short_scenario][n_training_years_tl_obs:n_training_years_tl_obs+n_test_years_tl_obs])
+                test_X = test_X.reshape(n_test_years_tl_obs,1,1)
 
-                train_y = np.zeros((n_training_years, n_lats, n_lons))
-                train_y[:,:,:] = BEST_data_array[:n_training_years,:,:]
+                train_y = np.zeros((n_training_years_tl_obs, 64, 128))
+                train_y[:,:,:] = BEST_data_array[:n_training_years_tl_obs,:,:]
 
                 trained_model = load_model(f'{PATH_TRAINED_MODELS}/{trained_model_filename}') # The model trained during the First Training must be loaded every time
-                K.set_value(trained_model.optimizer.lr, lr)
+                K.set_value(trained_model.optimizer.lr, lr_tl)
 
                 if compute_validation:
-                    n_val_years = len(val_years_list)
+                    n_val_years = len(val_years_list_tl_obs)
                     val_X = np.zeros((n_val_years,1,1))
-                    val_y = np.zeros((n_val_years, n_lats, n_lons))
+                    val_y = np.zeros((n_val_years, 64, 128))
                     
                     idx_to_remove = []
-                    for idx_val_year, val_year in enumerate(val_years_list):
-                        val_X[idx_val_year] = train_X[val_year-start_year_training]
-                        val_y[idx_val_year] = train_y[val_year-start_year_training,:,:]
-                        idx_to_remove.append(val_year-start_year_training)
+                    for idx_val_year, val_year in enumerate(val_years_list_tl_obs):
+                        val_X[idx_val_year] = train_X[val_year-start_year_training_tl_obs]
+                        val_y[idx_val_year] = train_y[val_year-start_year_training_tl_obs,:,:]
+                        idx_to_remove.append(val_year-start_year_training_tl_obs)
 
                     train_X = np.delete(train_X, idx_to_remove, axis=0)
                     train_y = np.delete(train_y, idx_to_remove, axis=0)
 
                 # The shuffle is done only on the train set. It is not needed on the test set
-                if shuffling_dataset[0]:
-                    idx_array = np.arange(0, n_training_years, 1, dtype=int)
-                    np.random.seed(shuffling_dataset[1])
+                if shuffle[0]:
+                    idx_array = np.arange(0, n_training_years_tl_obs, 1, dtype=int)
+                    np.random.seed(shuffle[1])
                     np.random.shuffle(idx_array)
                     train_X_shuffle, train_y_shuffle = train_X[idx_array[:]], train_y[idx_array[:],:,:]
                 else:
@@ -265,7 +204,7 @@ for idx_model, model  in enumerate(models_list):
                     val_y_2022 = val_y_2022[np.newaxis,:,:,:] 
                     val_X_2022 = val_X[-1,:]
                     val_X_2022 = val_X_2022[np.newaxis,:]
-                    save_validation_predictions_callback = PerformancePlotCallback(val_X, val_y, val_years_list[-1], model, scenario_short, scenario, y_min, y_max, PATH_PREDICTIONS_YEAR_2021)
+                    save_validation_predictions_callback = PerformancePlotCallback(val_X, val_y, val_years_list_tl_obs[-1], model, scenario_short, scenario, y_min, y_max, PATH_PREDICTIONS_YEAR_2021)
                 else:
                     save_validation_predictions_callback = []
 
@@ -273,20 +212,20 @@ for idx_model, model  in enumerate(models_list):
                 
                 start_train_time = time.time()
                 if compute_validation:
-                    # Continue fitting
+                    # Fine-tuning
                     history = trained_model.fit(train_X_shuffle,
                                                 train_y_shuffle,
                                                 epochs=epochs,
-                                                batch_size=batch_size,
+                                                batch_size=batch_size_tl,
                                                 validation_data=(val_X,val_y),
                                                 use_multiprocessing=True,
                                                 callbacks=callbacks)
                 else:
-                    # Continue fitting
+                    # Fine-tuning
                     history = trained_model.fit(train_X_shuffle,
                                                 train_y_shuffle,
                                                 epochs=epochs,
-                                                batch_size=batch_size,
+                                                batch_size=batch_size_tl,
                                                 use_multiprocessing=True,
                                                 callbacks=callbacks)
                 
@@ -300,9 +239,9 @@ for idx_model, model  in enumerate(models_list):
                     pd.DataFrame(np.array([history.history["loss"]]).T, columns=columns_history_df).to_csv(f'{PATH_HISTORIES}/{variable_short}_{model}_{scenario_short}_{ts_human}_history_{i}.csv')
 
                 if scale_input:
-                    train_X = normalize_img(np.array(X_ssp_list[idx_short_scenario][:n_training_years]), feature_range[0], feature_range[1], X_min, X_max).reshape(-1,1)
+                    train_X = normalize_img(np.array(X_ssp_list[idx_short_scenario][:n_training_years_tl_obs]), feature_range[0], feature_range[1], X_min, X_max).reshape(-1,1)
                 else:
-                    train_X = np.array(X_ssp_list[idx_short_scenario][:n_training_years]).reshape(-1, 1)
+                    train_X = np.array(X_ssp_list[idx_short_scenario][:n_training_years_tl_obs]).reshape(-1, 1)
                 train_y_pred = trained_model.predict(train_X)
 
                 test_y_pred = trained_model.predict(test_X)
@@ -316,7 +255,7 @@ for idx_model, model  in enumerate(models_list):
                     train_y_denorm = train_y
                     test_y_pred_denorm = test_y_pred
 
-                training_years = np.arange(start_year_training, end_year_training+1)
+                training_years = np.arange(start_year_training_tl_obs, end_year_training_tl_obs+1)
                 for idx, year in enumerate(training_years):
                     # Save predictions
                     with open(f'{PATH_TRAINING_SET_PREDICTIONS}/{variable_short}_{model}_{scenario_short}_year-{int(year)}_epoch-last_{ts_human}_train_set_prediction_{i}.csv',"w+") as my_csv:
@@ -324,7 +263,7 @@ for idx_model, model  in enumerate(models_list):
                         csvWriter.writerows(train_y_pred_denorm[idx,:,:,0])
                 print('\nSAVED PREDICTIONS ON TRAINING SET')
                     
-                test_years = np.arange(start_year_test, end_year_test+1)
+                test_years = np.arange(start_year_test_tl_obs, end_year_test_tl_obs+1)
                 for idx, year in enumerate(test_years):
                     # Save predictions
                     with open(f'{PATH_TEST_SET_PREDICTIONS}/{variable_short}_{model}_{scenario_short}_year-{int(year)}_epoch-last_{ts_human}_test_set_prediction_{i}.csv',"w+") as my_csv:
@@ -333,8 +272,8 @@ for idx_model, model  in enumerate(models_list):
                 print('\nSAVED PREDICTIONS ON TEST SET')
 
                 if not save_predictions_on_validation_set and compute_validation:
-                    PATH_TO_SAVE_PREDICTION = f'{PATH_PREDICTIONS_YEAR_2021}/{variable_short}_{model}_{scenario}_epoch-{epochs-1}_year-{val_years_list[-1]}_{ts_human}_val_set_prediction_{i}.png'
-                    plot_prediction_mae_map(train_y_denorm[-1,:,:,0], train_y_pred_denorm[-1,:,:,0], model, scenario, epochs-1, val_years_list[-1], PATH_TO_SAVE_PREDICTION)
+                    PATH_TO_SAVE_PREDICTION = f'{PATH_PREDICTIONS_YEAR_2021}/{variable_short}_{model}_{scenario}_epoch-{epochs-1}_year-{val_years_list_tl_obs[-1]}_{ts_human}_val_set_prediction_{i}.png'
+                    plot_prediction_mae_map(train_y_denorm[-1,:,:,0], train_y_pred_denorm[-1,:,:,0], model, scenario, epochs-1, val_years_list_tl_obs[-1], PATH_TO_SAVE_PREDICTION)
 
                 PATH_HYPERPARAMETERS_CSV = f'{PATH_TRANSFER_LEARNING_ON_OBSERVATIONS}/Hyperparameters/{variable_short}_{model}_{scenario_short}_{ts_human}_hyperparameters_{i}.csv'
 
@@ -357,6 +296,6 @@ for idx_model, model  in enumerate(models_list):
                 elapsed_loop_time = str(timedelta(seconds=elapsed_loop))
 
                 if not os.path.exists(PATH_HYPERPARAMETERS_CSV): pd.DataFrame(columns=columns_model_hyperparameters_df).to_csv(PATH_HYPERPARAMETERS_CSV)
-                df_hypp = pd.read_csv(PATH_HYPERPARAMETERS_CSV, dtype='str', usecols=columns_model_hyperparameters_df)
-                df_hypp.loc[len(df_hypp.index)] = [f'Transfer_learning_{ts_human}', FIRST_TRAINING_DIRECTORY, end_year_training, model, scenario, ts_human, elapsed_loop_time, elapsed_train_time, epochs, batch_size, lr, shuffling_dataset[0], scale_input, scale_output, feature_range[0], feature_range[1], y_min, y_max, CO2eq_climate_model, withAerosolForcing, 'True']
+                df_hypp = pd.read_csv(PATH_HYPERPARAMETERS_CSV, dtype='str', usecols=columns_model_hyperparameters_df_tl)
+                df_hypp.loc[len(df_hypp.index)] = [f'Transfer_learning_{ts_human}', FIRST_TRAINING_DIRECTORY, end_year_training_tl_obs, model, scenario, ts_human, elapsed_loop_time, elapsed_train_time, epochs, batch_size_tl, lr_tl, shuffle[0], scale_input, scale_output, feature_range[0], feature_range[1], y_min, y_max, CO2eq_climate_model, withAerosolForcing]
                 df_hypp.to_csv(PATH_HYPERPARAMETERS_CSV)

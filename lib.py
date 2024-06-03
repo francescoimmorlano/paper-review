@@ -2,12 +2,21 @@
 Author: Francesco Immorlano
 """
 
-import numpy as np
+from numpy import roots
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+from netCDF4 import Dataset
+import pickle
 import os
+from tqdm import tqdm
+from variables import *
+
+import pylab as pl
+
+
+plt.rcParams.update({'font.sans-serif': 'Arial'})
 
 def retrieve_cds_cmip6(c, variable, variable_short, model, experiment, level, t_resolution, data_format, download_directory):
     """
@@ -77,7 +86,7 @@ def plot_prediction_mae_map(val_y, val_y_pred, model_name, scenario, epoch, val_
 
     Returns
     -------
-        -
+    -
     """
     val_predictions_error = val_y_pred[:,:]-val_y[:,:]
     val_predictions_absolute_error = np.abs(val_predictions_error)
@@ -349,9 +358,9 @@ def get_DeltaR(C):
     
     return RF_CO2
 
-def read_CO2_equivalent(maindir, ssp_scenario, model, withAerosolForcing, start_year_training=1850):
+def read_CO2_equivalent(maindir, ssp_scenario, model, withAerosolForcing, start_year=1850):
     u"""
-    Compute CO2 equivalent values from ERF values that take into account aerosols and several Greenhouse Gases.
+    Compute CO2 equivalent values from ERF values that take into account aerosols and several Greenhouse Gases, from start_year to 2098
 
     Parameters
     ----------
@@ -367,10 +376,10 @@ def read_CO2_equivalent(maindir, ssp_scenario, model, withAerosolForcing, start_
     withAerosolForcing : bool
         Flag to decide if inlcude aerosols in the ERF values or not
 
-    start_year_training : int, default: 1850
-        Starting year from which values have to be loaded.
+    start_year : int, default: 1850
+        First year from which values must be loaded.
 
-        It is different than 1850 if the user wants to use a training set starting from a year higher than 1850.
+        It is different than 1850 if the user wants to use a training set starting from a year greater than 1850.
 
     Returns
     -------
@@ -382,7 +391,7 @@ def read_CO2_equivalent(maindir, ssp_scenario, model, withAerosolForcing, start_
         List of years for which CO2eq were computed
     """
     # If start_year_training > 1850, the data will be read from the first training year that was specified
-    start_idx = start_year_training - 1850
+    start_idx = start_year - 1850
 
     # First file with CO2 equivalent from Zebedee_Nichols
     namefile = 'erf_estimates_with_aerosols_Zebedee_Nichols.csv'
@@ -410,6 +419,297 @@ def read_CO2_equivalent(maindir, ssp_scenario, model, withAerosolForcing, start_
     
     return data, CO2_eq, year_list
 
+def read_all_cmip6_simulations():
+    """
+    Read CMIP6 simulation data
+
+    Parameters
+    ----------
+    -
+
+    Returns
+    -------
+        ndarray containing CMIP6 maps
+        
+        `shape: (22, 3, 249, 64, 128)`
+    """
+
+    if os.path.exists(f'{PATH_ANNUAL_SIMULATIONS_DIRECTORY}/Annual_uniform_remapped.pickle'):
+        pickle_in = open(f'{PATH_ANNUAL_SIMULATIONS_DIRECTORY}/Annual_uniform_remapped.pickle','rb')
+        simulation_models_array = pickle.load(pickle_in)
+    else:
+        simulation_models_array = np.zeros((len(models_list_complete), len(short_scenarios_list_complete), 249, 64, 128))
+        for model_idx, model in tqdm(enumerate(models_list_complete), total=len(models_list_complete)):
+            simulation_models_array[model_idx,:,:] = read_cmip6_simulation(model)
+
+        pickle_out = open(f'{PATH_ANNUAL_SIMULATIONS_DIRECTORY}/Annual_uniform_remapped.pickle', 'wb')
+        pickle.dump(simulation_models_array, pickle_out)
+        pickle_out.close()
+    
+    return simulation_models_array
+
+def read_cmip6_simulation(model_to_read):
+    model_simulation = np.zeros((len(short_scenarios_list_complete), n_training_years_loo_cv+n_test_years_loo_cv, 64, 128))
+    for scenario_idx, scenario_short in enumerate(short_scenarios_list_complete):
+        simulations_files_list = os.listdir(PATH_ANNUAL_SIMULATIONS_DIRECTORY)
+        simulations_files_list.sort()
+        matching_simulations = [simulation_file for simulation_file in simulations_files_list if ((model_to_read in simulation_file and 'historical' in simulation_file)
+                                                                                                or (model_to_read in simulation_file and scenario_short in simulation_file))]
+        # maching_simulations[0] is the historical and matching_simulations[1] is the SSP simulation because of the sort operation
+        # (for each model, the first simulation is the historical and then the SSP)  
+        nc_historical_data = Dataset(f'{PATH_ANNUAL_SIMULATIONS_DIRECTORY}/{matching_simulations[0]}', mode='r+', format='NETCDF3_CLASSIC')
+        nc_ssp_data = Dataset(f'{PATH_ANNUAL_SIMULATIONS_DIRECTORY}/{matching_simulations[1]}', mode='r+', format='NETCDF3_CLASSIC')
+        n_historical_years = nc_historical_data[variable_short].shape[0]
+        n_ssp_years = nc_ssp_data[variable_short].shape[0]
+        model_simulation[scenario_idx,:n_historical_years,:,:] = nc_historical_data[variable_short][:]
+        if (n_ssp_years == 84):
+            model_simulation[scenario_idx,n_historical_years:,:,:] = nc_ssp_data[variable_short][:,:,:]
+        elif (n_ssp_years == 85):
+            model_simulation[scenario_idx,n_historical_years:,:,:] = nc_ssp_data[variable_short][:-1,:,:]
+        elif (n_ssp_years == 86):
+            model_simulation[scenario_idx,n_historical_years:,:,:] = nc_ssp_data[variable_short][:-2,:,:]
+        nc_historical_data.close()
+        nc_ssp_data.close()
+    
+    return model_simulation
+
+def read_BEST_data(PATH_BEST_DATA):
+    """
+    Read Berkeley Earth Surface Temperature (BEST) data
+
+    Parameters
+    ----------
+    PATH_BEST_DATA : string
+        Complete path of the nc file that must be read
+
+    Returns
+    -------
+        ndarray containing BEST observative maps
+        
+        `shape: (44, 64, 128)`
+    """
+    nc_BEST_data = Dataset(f'{PATH_BEST_DATA}', mode='r+', format='NETCDF3_CLASSIC')
+    BEST_data_array = nc_BEST_data['st'][:,:,:]
+    nc_BEST_data.close()
+
+    return BEST_data_array
+
+def read_BEST_data_uncertainty():
+    """
+    Read Berkeley Earth Surface Temperature (BEST) data uncertainty.
+    One uncertainty value per year is available.
+
+    Parameters
+    ----------
+    PATH_BEST_DATA_UNCERTAINTY : string
+        Complete path of the csv file containing BEST data uncertainties that must be read
+
+    Returns
+    -------
+        list containing the uncertainty values of observative data for each year
+        
+        `len: 44`
+    """
+    uncertainty_df = pd.read_csv(f'{PATH_BEST_DATA_UNCERTAINTY}', header=None, delim_whitespace=True)
+    annual_uncertainties_list = list(uncertainty_df[uncertainty_df[0].between(start_year_training_tl_obs, end_year_training_tl_obs)][2])
+
+    annual_uncertainties_list.append(0.045) # 2019
+    annual_uncertainties_list.append(0.045) # 2020
+    annual_uncertainties_list.append(0.045) # 2021
+    annual_uncertainties_list.append(0.045) # 2022
+
+    return annual_uncertainties_list
+
+def read_first_train_predictions(plot_figure_paper, FIRST_TRAINING_DIRECTORY=None):
+    """
+    Read predictions after first training on CMIP6 simulation data
+
+    Parameters
+    ----------   
+    FIRST_TRAINING_DIRECTORY : str 
+        (Optional) Name of the directory wherein the predicitons after first training on CMIP6 simulations was stored (Format: First_Training_YYYY-MM-DD_hh-mm-ss).
+        Set to None in case of plotting figures from the paper.
+    
+    plot_figure_paper : bool
+        Flag that is True when the routine is used to plot one of the figures of the manuscript.
+
+    Returns
+    -------
+        ndarray containing predictions generated after pre-training on CMIP6 simulation data
+        `shape: (22, 3, 249, 64, 128)`
+    """
+    if plot_figure_paper:
+        pickle_in = open(f'{ROOT_SOURCE_DATA}/First_Training/First_Training_predictions.pickle','rb')
+        predictions_first_training = pickle.load(pickle_in)
+    elif os.path.exists(f'{ROOT_EXPERIMENTS}/First_Training/{FIRST_TRAINING_DIRECTORY}/Predictions/{FIRST_TRAINING_DIRECTORY}.pickle'):
+        pickle_in = open(f'{ROOT_EXPERIMENTS}/First_Training/{FIRST_TRAINING_DIRECTORY}/Predictions/{FIRST_TRAINING_DIRECTORY}.pickle','rb')
+        predictions_first_training = pickle.load(pickle_in)
+    else:
+        predictions_first_training = np.zeros((len(models_list_complete), len(short_scenarios_list_complete), n_training_years_first_training, 64, 128))
+        for model_idx, model in enumerate(models_list_complete):
+            for scenario_idx, scenario_short in enumerate(short_scenarios_list):
+                PREDICTIONS_DIRECTORY = f'{ROOT_EXPERIMENTS}/First_Training/tas_{model}_{scenario_short}'
+                model_train_set_predictions_filenames_list = os.listdir(PREDICTIONS_DIRECTORY)
+                model_train_set_predictions_filenames_list = [fn for fn in model_train_set_predictions_filenames_list if (fn.endswith('.csv'))]
+                model_train_set_predictions_filenames_list.sort()
+                model_train_set_prediction_array = np.zeros((n_training_years_first_training, 64, 128))
+                for mp_idx, mp_filename in enumerate(model_train_set_predictions_filenames_list):
+                    if (not mp_filename.endswith('.csv')):
+                        continue
+                    file = open(f'{PREDICTIONS_DIRECTORY}/{mp_filename}')
+                    model_train_set_prediction_array[mp_idx,:,:] = np.loadtxt(file, delimiter=',')
+                predictions_first_training[model_idx,scenario_idx,:,:,:] = model_train_set_prediction_array
+        pickle_out = open(f'{ROOT_EXPERIMENTS}/First_Training/{FIRST_TRAINING_DIRECTORY}/Predictions/{FIRST_TRAINING_DIRECTORY}.pickle','wb')
+        pickle.dump(predictions_first_training, pickle_out)
+        pickle_out.close()
+    return predictions_first_training
+
+def read_tl_obs_predictions(n_BEST_datasets_per_model_scenario, plot_figure_paper, TL_OBS_DIRECTORY=None):
+    """
+    Read predictions after fine tuning on observative data
+
+    Parameters
+    ----------
+    n_BEST_datasets_per_model_scenario : int 
+        Number of BEST observative datasets generated by adding a noise sampled from a Gaussian distribution with 0 mean and stddev equal to 1
+    
+    plot_figure_paper : bool
+        Flag that is True when the routine is used to plot one of the figures of the manuscript.
+        
+    TL_OBS_DIRECTORY : str 
+        (Optional) Name of the directory wherein the Transfer Learning on observations was stored (Format: Transfer_learning_obs_YYYY-MM-DD_hh-mm-ss).
+        Set to None in case of plotting figures from the paper.
+
+    Returns
+    -------
+        ndarray containing predictions generated after fine tuning on observative data
+        
+        `shape: (5, 22, 3, 120, 64, 128)`
+    """
+    if plot_figure_paper:
+        pickle_in = open(f'{ROOT_SOURCE_DATA}/Transfer_Learning_on_Observations/Transfer_learning_obs.pickle','rb')
+        predictions_tl = pickle.load(pickle_in)
+    elif os.path.exists(f'{ROOT_EXPERIMENTS}/Transfer_Learning_on_Observations/{TL_OBS_DIRECTORY}/{TL_OBS_DIRECTORY}.pickle'):
+        pickle_in = open(f'{ROOT_EXPERIMENTS}/Transfer_Learning_on_Observations/{TL_OBS_DIRECTORY}/{TL_OBS_DIRECTORY}.pickle','rb')
+        predictions_tl = pickle.load(pickle_in)
+    else:
+        """ Load predictions made by the DNNs after transfer learning on observational data """
+        predictions_tl = np.zeros((n_BEST_datasets_per_model_scenario, len(models_list_complete), len(short_scenarios_list_complete), n_training_years_tl_obs+n_test_years_tl_obs, 64, 128))
+        for model_idx, model in tqdm(enumerate(models_list_complete), total=len(models_list_complete)):
+            for scenario_idx, scenario_short in enumerate(short_scenarios_list_complete):
+                for i in range(n_BEST_datasets_per_model_scenario):
+                    TRAIN_SET_PREDICTIONS_DIRECTORY = f'{ROOT_EXPERIMENTS}/Transfer_Learning_on_Observations/{TL_OBS_DIRECTORY}/Plots/Training_set_predictions/tas_{model}_{scenario_short}_{i+1}'
+                    TEST_SET_PREDICTIONS_DIRECTORY = f'{ROOT_EXPERIMENTS}/Transfer_Learning_on_Observations/{TL_OBS_DIRECTORY}/Plots/Test_set_predictions/tas_{model}_{scenario_short}_{i+1}'
+                    ########################### TRAINING SET PREDICTIONS ###########################
+                    model_train_set_predictions_filenames_list = os.listdir(TRAIN_SET_PREDICTIONS_DIRECTORY)
+                    model_train_set_predictions_filenames_list = [fn for fn in model_train_set_predictions_filenames_list if (fn.endswith('.csv'))]
+                    model_train_set_predictions_filenames_list.sort()
+                    model_train_set_prediction_array = np.zeros((n_training_years_tl_obs, 64, 128))
+                    for mp_idx, mp_filename in enumerate(model_train_set_predictions_filenames_list):
+                        if (not mp_filename.endswith('.csv')):
+                            continue
+                        file = open(f'{TRAIN_SET_PREDICTIONS_DIRECTORY}/{mp_filename}')
+                        model_train_set_prediction_array[mp_idx,:,:] = np.loadtxt(file, delimiter=',')
+                    predictions_tl[i,model_idx,scenario_idx,:n_training_years_tl_obs,:,:] = model_train_set_prediction_array
+                    ########################### TEST SET PREDICTIONS ###########################
+                    model_predictions_filenames_list = os.listdir(TEST_SET_PREDICTIONS_DIRECTORY)
+                    model_predictions_filenames_list = [fn for fn in model_predictions_filenames_list if (fn.endswith('.csv'))]
+                    model_predictions_filenames_list.sort()
+                    model_prediction_array = np.zeros((n_test_years_tl_obs+2, 64, 128)) # qui è necessario inserire +2 se end_year_test=2098, perché leggiamo comunque tutti i file fino al 2100, ma poi in predictions salviamo solo quelli fino al 2098. Ma comunque vanno letti tutti, altrimenti dà errore
+                    for mp_idx, mp_filename in enumerate(model_predictions_filenames_list):
+                        if (not mp_filename.endswith('.csv')):
+                            continue
+                        file = open(f'{TEST_SET_PREDICTIONS_DIRECTORY}/{mp_filename}')
+                        model_prediction_array[mp_idx,:,:] = np.loadtxt(file, delimiter=',')
+                    predictions_tl[i,model_idx,scenario_idx,n_training_years_tl_obs:,:,:] = model_prediction_array[:-2]
+        pickle_out = open(f'{ROOT_EXPERIMENTS}/Transfer_Learning_on_Observations/{TL_OBS_DIRECTORY}/{TL_OBS_DIRECTORY}.pickle','wb')
+        pickle.dump(predictions_tl, pickle_out)
+        pickle_out.close()
+    return predictions_tl
+
+def read_tl_simulations_predictions_shuffle(shuffle_idx, plot_figure_paper, atmospheric_model_family=None, TL_DIRECTORY=None):
+    """
+    Read predictions after transfer learning on taken-out CMIP6 simulation related to shuffle_idx
+
+    Parameters
+    ----------   
+    shuffle_idx : int
+        Index (0 to 21) associated to the taken-out model.
+
+    plot_figure_paper : bool
+        Flag that is True when the routine is used to plot one of the figures of the manuscript.
+    
+    atmospheric_model_family : list of strings
+        (Optional) List of CMIP6 models belonging to the same atmospheric model family of the taken-out model.
+        Set to None in case of not excluding the CMIP6 models belonging to the same atmospheric model family (e.g., Fig. S5)
+
+    TL_DIRECTORY : str 
+        (Optional) Name of the directory wherein the predicitons after transfer learning on taken-out CMIP6 simulations (associated to shuffle_idx) is stored (Format: Transfer_learning_YYYY-MM-DD_hh-mm-ss).
+        Set to None in case of plotting figures from the paper.
+    
+    Returns
+    -------
+        ndarray containing predictions generated after transfer learning on taken-out CMIP6 simulation
+        
+        `shape: (21, 3, 249, 64, 128)` if models belonging to the same atmospheric model families are not excluded
+    """
+
+    if shuffle_idx < 9:
+        shuffle_number = f'0{shuffle_idx+1}'
+    else:
+        shuffle_number = f'{shuffle_idx+1}'
+
+    if plot_figure_paper:
+        pickle_in = open(f'{ROOT_SOURCE_DATA}/Transfer_Learning_on_Simulations/Predictions_shuffle-{shuffle_number}.pickle','rb')
+        predictions_tl_on_simulations = pickle.load(pickle_in)
+    elif os.path.exists(f'{ROOT_EXPERIMENTS}/Transfer_Learning_on_Simulations/{TL_DIRECTORY}/Shuffle_{shuffle_number}/Shuffle_{shuffle_number}.pickle'):
+        pickle_in = open(f'{ROOT_EXPERIMENTS}/Transfer_Learning_on_Simulations/{TL_DIRECTORY}/Shuffle_{shuffle_number}/Shuffle_{shuffle_number}.pickle','rb')
+        predictions_tl_on_simulations = pickle.load(pickle_in)
+    else:
+        models_list_remaining = models_list_complete.copy()
+        model_taken_out = models_list_complete[shuffle_idx]
+        models_list_remaining.remove(model_taken_out)
+        
+        if atmospheric_model_family:
+            for family_member in atmospheric_model_family:
+                models_list_remaining.remove(family_member)
+
+        predictions_tl_on_simulations = np.zeros((len(models_list_remaining), len(short_scenarios_list), n_training_years_loo_cv+n_test_years_loo_cv-2, 64, 128)) # (21,3,249,64,128)
+        for model_idx, model in enumerate(models_list_remaining):
+            for scenario_idx, scenario_short in enumerate(short_scenarios_list):
+                TRAIN_SET_PREDICTIONS_DIRECTORY = f'{ROOT_EXPERIMENTS}/Transfer_Learning_on_Simulations/Shuffle_{shuffle_number}/Plots/Training_set_predictions/tas_{model}_{scenario_short}_shuffle-{shuffle_number}'
+                TEST_SET_PREDICTIONS_DIRECTORY = f'{ROOT_EXPERIMENTS}/Transfer_Learning_on_Simulations/Shuffle_{shuffle_number}/Plots/Test_set_predictions/tas_{model}_{scenario_short}_shuffle-{shuffle_number}'
+                '''
+                TRAINING SET PREDICTIONS
+                '''
+                model_train_set_predictions_filenames_list = os.listdir(TRAIN_SET_PREDICTIONS_DIRECTORY)
+                model_train_set_predictions_filenames_list = [fn for fn in model_train_set_predictions_filenames_list if (fn.endswith('.csv'))]
+                model_train_set_predictions_filenames_list.sort()
+                model_train_set_prediction_array = np.zeros((n_training_years_loo_cv, 64, 128))
+                for mp_idx, mp_filename in enumerate(model_train_set_predictions_filenames_list):
+                    if (not mp_filename.endswith('.csv')):
+                        continue
+                    file = open(f'{TRAIN_SET_PREDICTIONS_DIRECTORY}/{mp_filename}')
+                    model_train_set_prediction_array[mp_idx,:,:] = np.loadtxt(file, delimiter=',')
+                predictions_tl_on_simulations[model_idx,scenario_idx,:n_training_years_loo_cv,:,:] = model_train_set_prediction_array
+                '''
+                TEST SET PREDICTIONS
+                '''
+                model_test_set_predictions_filenames_list = os.listdir(TEST_SET_PREDICTIONS_DIRECTORY)
+                model_test_set_predictions_filenames_list = [fn for fn in model_test_set_predictions_filenames_list if (fn.endswith('.csv'))]
+                model_test_set_predictions_filenames_list.sort()
+                model_test_set_prediction_array = np.zeros((n_test_years_loo_cv, 64, 128))
+                for mp_idx, mp_filename in enumerate(model_test_set_predictions_filenames_list):
+                    if (not mp_filename.endswith('.csv')):
+                        continue
+                    file = open(f'{TEST_SET_PREDICTIONS_DIRECTORY}/{mp_filename}')
+                    model_test_set_prediction_array[mp_idx,:,:] = np.loadtxt(file, delimiter=',')
+                predictions_tl_on_simulations[model_idx,scenario_idx,n_training_years_loo_cv:,:,:] = model_test_set_prediction_array[:-2,:,:]
+        pickle_out = open(f'{ROOT_EXPERIMENTS}/Transfer_Learning_on_Simulations/{TL_DIRECTORY}/Shuffle_{shuffle_number}/Shuffle_{shuffle_number}.pickle','wb')
+        pickle.dump(predictions_tl_on_simulations, pickle_out)
+        pickle_out.close()
+    return predictions_tl_on_simulations
+
 def compute_values_for_scaling(X_ssp_list):
     """
     Compute highest and lowest data values for each SSP scenario.
@@ -434,7 +734,6 @@ def compute_values_for_scaling(X_ssp_list):
     return_list.extend([X_min_list, X_max_list])
 
     return return_list
-
 
 def compute_years_to_threshold(window_size, predictions_means):
     """
@@ -485,6 +784,86 @@ def compute_years_to_threshold(window_size, predictions_means):
 
     return [year_to_1_5_threshold, year_to_2_threshold]
                 
-    
+"""
+    ORDINARY LEAST-SQUARES FIT (FOURTH-ORDER POLYNOMIAL)
+"""
+def moving_average(a, n=10):
+    ret = np.cumsum(a, dtype=float)
+    ret[n:] = ret[n:] - ret[:-n]
+    return ret[n - 1:] / n
 
-    
+def main_uncertainty_partitioning(y, first_year, last_year):
+	n = 4	# this is the degree of the approximating polynomial P(x)
+	x = np.array(range(first_year,last_year+1), float)	# x-values
+	xs, xy = get_system_of_equations(x, y, n)
+	xs = np.reshape(xs, ((n + 1), (n + 1)))	# reshape the matrix xs to solve the system of equations
+	xy = np.reshape(xy, ((n + 1), 1))
+	a = np.linalg.solve(xs, xy)	# solve the system of equations
+	poly_values = fn(x, a)
+	return(poly_values)
+	
+def get_system_of_equations(x, y, n):
+	xs = np.array([]); xy = np.array([])
+	for index in range(0, (n + 1)):
+		for exp in range(0, (n + 1)):
+			tx = np.sum(x**(index + exp))
+			xs = np.append(xs, tx)
+		ty = np.sum(y * (x**index))
+		xy = np.append(xy, ty)
+	return xs, xy
+
+def find_error(y, fn):
+	return np.sum((y - fn)**2)
+
+def fn(x, a):
+	px = 0
+	for index in range(0, np.size(a)):
+		px += (a[index] * (x**index))
+	return px
+
+def uncertainty_partition(values_array, start_year, end_year, start_year_baseline, end_year_baseline):
+    baseline = np.mean(values_array[:,:,start_year_baseline-start_year:end_year_baseline-start_year+1], axis=-1)
+    anomalies_array = np.zeros((len(short_scenarios_list_complete), len(models_list_complete), end_year-start_year+1))
+    poly_values_array = np.zeros((len(short_scenarios_list_complete), len(models_list_complete), end_year-start_year+1))
+    for idx_short_scenario, short_scenario in enumerate(short_scenarios_list_complete):
+        for idx_model, model in enumerate(models_list_complete):
+            anomalies_array[idx_short_scenario, idx_model,:] = values_array[idx_short_scenario, idx_model,:] - baseline[idx_short_scenario, idx_model]
+            poly_values_array[idx_short_scenario,idx_model,:] = main_uncertainty_partitioning(anomalies_array[idx_short_scenario,idx_model,:], start_year, end_year)
+    epsilon =  anomalies_array - poly_values_array
+    models_variance = np.var(epsilon, axis=(0,2))
+    V = np.mean(models_variance)
+    scenarios_variance = np.var(poly_values_array, axis=1)
+    M = np.mean(scenarios_variance, axis=0)
+    multi_model_poly = np.mean(poly_values_array, axis=1)
+    S = np.var(multi_model_poly, axis=0)
+    T = M + S + V
+    G = np.mean(poly_values_array, axis=(0,1))
+    F = (1.65 * np.sqrt(T)) / G
+    F_V = (1.65 * np.sqrt(V)) / G
+    F_M = (1.65 * np.sqrt(M)) / G
+    F_S = (1.65 * np.sqrt(S)) / G
+    return F, F_M, F_V, F_S, T, M, V, S
+
+def uncertainty_partition_predictions(values_array, start_year, end_year, start_year_baseline, end_year_baseline):
+	baseline = np.mean(values_array[:,:,:,start_year_baseline-start_year:end_year_baseline-start_year+1], axis=-1)
+	anomalies_array = np.zeros((5,len(models_list_complete),len(short_scenarios_list_complete), end_year-start_year+1))
+	poly_values_array = np.zeros((5,len(models_list_complete),len(short_scenarios_list_complete), end_year-start_year+1))
+	for idx_short_scenario, short_scenario in enumerate(short_scenarios_list_complete):
+		for idx_model, model in enumerate(models_list_complete):
+			for idx_best_model in range(n_BEST_datasets_per_model_scenario):
+				anomalies_array[idx_best_model, idx_model, idx_short_scenario, :] = values_array[idx_best_model, idx_model, idx_short_scenario, :] - baseline[idx_best_model, idx_model, idx_short_scenario]
+				poly_values_array[idx_best_model, idx_model, idx_short_scenario, :] = main_uncertainty_partitioning(anomalies_array[idx_best_model, idx_model, idx_short_scenario, :], start_year, end_year)
+	epsilon =  anomalies_array - poly_values_array
+	models_variance = np.var(epsilon, axis=(2,3))
+	V = np.mean(models_variance, axis=(0,1))
+	scenarios_variance = np.var(poly_values_array, axis=(0,1))
+	M = np.mean(scenarios_variance, axis=0)
+	multi_model_poly = np.mean(poly_values_array, axis=(0,1))
+	S = np.var(multi_model_poly, axis=0)
+	T = M + S + V
+	G = np.mean(poly_values_array, axis=(0,1,2))
+	F = (1.65 * np.sqrt(T)) / G
+	F_V = (1.65 * np.sqrt(V)) / G
+	F_M = (1.65 * np.sqrt(M)) / G
+	F_S = (1.65 * np.sqrt(S)) / G
+	return F, F_M, F_V, F_S, T, M, V, S

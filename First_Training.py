@@ -6,37 +6,19 @@ Overall, 66 DNNs are trained, each on a different simulation and with the same h
 and architecture.
 """
 
-import os
-import numpy as np
-import pandas as pd
 import time
-from datetime import datetime, timedelta
+from datetime import timedelta
 from tensorflow.keras.callbacks import Callback
 from tensorflow.keras.optimizers.legacy import Adam
 from tensorflow.keras.regularizers import l1_l2
-from netCDF4 import Dataset
 import csv
 from lib import *
 from architectures import *
-from variables import *
 
-
-columns_history_df = ['train_loss', 'val_loss']
-columns_model_hyperparameters_df = ['train_directory_name', 'model', 'scenario', 'date_time', 'elapsed_loop_time', 'elapsed_train_time', 'epochs', 'batch_size', 'start_year_training', 'end_year_training', 'val_year', 'L1_regularization', 'L2_regularization', 'shuffle', 'scale_input', 'scale_output', 'norm_min', 'norm_max', 'train_percent', 'val_percent', 'opt', 'loss', 'weight_initializer', 'activation', 'CO2eq_climate_model', 'withAerosolForcing', 'use_observations']
-
-ts = datetime.now()
-ts_human = ts.strftime('%Y-%m-%d_%H-%M-%S')
 print(f'\n\n************************************ First_Training_{ts_human} ************************************')
 
-if demo_download:
-    PATH_ANNUAL_SIMULATIONS_DIRECTORY = f'./Demo_download/Data/CMIP6_data/{variable}/Annual_uniform_remapped'
-    PATH_FIRST_TRAINING = f'./Demo_download/Experiments/First_Training/First_Training_{ts_human}'
-elif demo_no_download:
-    PATH_ANNUAL_SIMULATIONS_DIRECTORY = f'./Demo_no_download/Data/CMIP6_data/{variable}/Annual_uniform_remapped'
-    PATH_FIRST_TRAINING = f'./Demo_no_download/Experiments/First_Training/First_Training_{ts_human}'
-else:
-    PATH_ANNUAL_SIMULATIONS_DIRECTORY = f'./Source_data/CMIP6_data/{variable}/Annual_uniform_remapped'
-    PATH_FIRST_TRAINING = f'./Experiments/First_Training/First_Training_{ts_human}'
+PATH_ANNUAL_SIMULATIONS_DIRECTORY = f'{ROOT_SOURCE_DATA}/CMIP6_data/{variable}/Annual_uniform_remapped'
+PATH_FIRST_TRAINING = f'{ROOT_EXPERIMENTS}/Experiments/First_Training/First_Training_{ts_human}'
 
 PATH_MODELS = f'{PATH_FIRST_TRAINING}/Models'
 PATH_HISTORIES = f'{PATH_FIRST_TRAINING}/Histories'
@@ -50,35 +32,10 @@ if not os.path.exists(PATH_PLOTS): os.mkdir(PATH_PLOTS)
 if not os.path.exists(PATH_HYPERPARAMETERS): os.mkdir(PATH_HYPERPARAMETERS)
 if not os.path.exists(PATH_PREDICTIONS_YEAR_2095): os.mkdir(PATH_PREDICTIONS_YEAR_2095)
 
-##################### CALLBACKS #####################
-save_predictions_on_validation_set = True
-
-n_channels = 1
-
-epochs = 2
-batch_size = 8
-n_filters = 128
-
 shuffle = (True, 42)
-
-start_year_training = 1850
-end_year_training = 2098
-n_training_years = end_year_training-start_year_training+1
-
-# Year reserved for validation 
-val_year = 2095
-
-first_ssp_year = 2015
-
-# Decide if normalize input and/or output to a range set by the feature_range variable
-scale_input = True
-scale_output = True
-feature_range = (0,1)
 
 # This is set to (1,0) to leave all the samples in the training set and then extract the ones reserved for the validation. Then shuffle is applied
 train_val_ratio = (1, 0)
-
-loss = 'mae'
 
 l1_regularization = 0
 l2_regularization = 0
@@ -86,8 +43,8 @@ regularizer = l1_l2(l1=l1_regularization, l2=l2_regularization)
 
 weight_initializer = 'glorot_uniform'
 
-lr = 1e-4
-optim = Adam(learning_rate=lr, beta_1=0.9, beta_2=0.999, epsilon=1e-8)
+optim = Adam(learning_rate=lr_first_train, beta_1=0.9, beta_2=0.999, epsilon=1e-8)
+
 
 alpha_constant = 0.2
 hidden_layers_activation_function = 'leaky_relu'
@@ -103,8 +60,7 @@ if output_layer_activation_function == 'leaky_relu' or output_layer_activation_f
 else:
     activation_functions = f'{activation_functions}; Output Layer: {output_layer_activation_function}'
 
-CO2eq_climate_model = 'MCE-v1-2'
-withAerosolForcing = True
+
 
 class PerformancePlotCallback(Callback):
     def __init__(self, val_X, val_y, val_year, model_name, short_scenario, scenario, y_min, y_max):
@@ -148,14 +104,17 @@ _, X_ssp370, _ = read_CO2_equivalent('./', 'ssp370', CO2eq_climate_model, withAe
 _, X_ssp585, _ = read_CO2_equivalent('./', 'ssp585', CO2eq_climate_model, withAerosolForcing)
 
 X_ssp_list = []
-X_ssp_list.append(X_ssp245)
-X_ssp_list.append(X_ssp370)
-X_ssp_list.append(X_ssp585)
+X_ssp_list.append(X_ssp245[:-2])
+X_ssp_list.append(X_ssp370[:-2])
+X_ssp_list.append(X_ssp585[:-2])
 
-return_list = compute_values_for_scaling(X_ssp_list)
+if scale_input:
+    return_list = compute_values_for_scaling(X_ssp_list)
+    X_min_list = return_list[0]
+    X_max_list = return_list[1]
 
-X_min_list = return_list[0]
-X_max_list = return_list[1]
+# Read CMIP6 simulations
+cmip6_simulations = read_all_cmip6_simulations()
 
 for idx_model, model in enumerate(models_list):
     for idx_short_scenario, short_scenario in enumerate(short_scenarios_list):
@@ -165,46 +124,26 @@ for idx_model, model in enumerate(models_list):
         print(f'{idx_model+1}. Model: {model} - Scenario: {scenario}\n\n')
 
         PATH_HYPERPARAMETERS_CSV = f'{PATH_HYPERPARAMETERS}/{variable_short}_{model}_{short_scenario}_{ts_human}_models_hyperparameters.csv'
-        if not os.path.exists(PATH_HYPERPARAMETERS_CSV): pd.DataFrame(columns=columns_model_hyperparameters_df).to_csv(PATH_HYPERPARAMETERS_CSV)
+        if not os.path.exists(PATH_HYPERPARAMETERS_CSV): pd.DataFrame(columns=columns_model_hyperparameters_df_first_training).to_csv(PATH_HYPERPARAMETERS_CSV)
         
-        df_hypp = pd.read_csv(PATH_HYPERPARAMETERS_CSV, dtype='str', usecols=columns_model_hyperparameters_df)
+        df_hypp = pd.read_csv(PATH_HYPERPARAMETERS_CSV, dtype='str', usecols=columns_model_hyperparameters_df_first_training)
 
-        HISTORICAL_SIMULATION_FILENAME = [s for s in simulations_list if (model in s and 'historical' in s)][0]
-        SSP_SIMULATION_FILENAME  = [s for s in simulations_list if (model in s and short_scenario in s)][0]
-        
-        nc_historical_data = Dataset(f'{PATH_ANNUAL_SIMULATIONS_DIRECTORY}/{HISTORICAL_SIMULATION_FILENAME}', mode='r+', format='NETCDF3_CLASSIC')
-        nc_ssp_data = Dataset(f'{PATH_ANNUAL_SIMULATIONS_DIRECTORY}/{SSP_SIMULATION_FILENAME}', mode='r+', format='NETCDF3_CLASSIC')
-
-        n_historical_years = nc_historical_data[variable_short].shape[0]
-        n_ssp_years = nc_ssp_data[variable_short].shape[0]
-        n_lats = nc_historical_data['lat'].shape[0]
-        n_lons = nc_historical_data['lon'].shape[0]
-
-        simulation_array = np.zeros((n_training_years, n_lats, n_lons))
-        simulation_array[:2014-start_year_training+1,:,:] = nc_historical_data[variable_short][:,:,:]
-        if n_ssp_years == 86: # If the simulation goes up to 2100 
-            simulation_array[2014-start_year_training+1:,:,:] = nc_ssp_data[variable_short][:-2,:,:]
-        elif n_ssp_years == 85: # If the simulation goes up to 2099
-            simulation_array[2014-start_year_training+1:,:,:] = nc_ssp_data[variable_short][:-1,:,:]
-        elif n_ssp_years == 84: # If the simulation goes up to 2098
-            simulation_array[2014-start_year_training+1:,:,:] = nc_ssp_data[variable_short][:,:,:]
-
-        nc_historical_data.close()
-        nc_ssp_data.close()
         
         X_co2 = X_ssp_list[idx_short_scenario].copy()
 
-        years = np.arange(start_year_training, end_year_training+1, 1, dtype=int)
-        years = years.reshape(n_training_years,1,1)
+        years = np.arange(start_year_first_training, end_year_first_training+1, 1, dtype=int)
+        years = years.reshape(n_training_years_first_training,1,1)
 
         print(f'\n val x val y shape before val reservation:')
         print(len(X_co2))
         
-        val_year_idx = val_year - start_year_training
+        val_year_idx = val_year_first_training - start_year_first_training
         val_X = X_co2[val_year_idx]
         val_X = np.array(val_X)
         X_co2.pop(val_year_idx)
         X_co2 = np.array(X_co2)
+
+        simulation_array = cmip6_simulations[idx_model, idx_short_scenario, :, :, :]
         
         val_y = simulation_array[val_year_idx,:,:]
         simulation_array = np.delete(simulation_array, val_year_idx, axis=0)
@@ -248,7 +187,7 @@ for idx_model, model in enumerate(models_list):
             if (not scale_output):
                 y_min = 0
                 y_max = 0
-            save_validation_predictions_callback = PerformancePlotCallback(val_X, val_y, val_year, model, short_scenario, scenario, y_min, y_max)
+            save_validation_predictions_callback = PerformancePlotCallback(val_X, val_y, val_year_first_training, model, short_scenario, scenario, y_min, y_max)
         else:
             save_validation_predictions_callback = []
 
@@ -259,7 +198,7 @@ for idx_model, model in enumerate(models_list):
         history = NN_model.fit(train_X,
                                 train_y,
                                 epochs=epochs,
-                                batch_size=batch_size,
+                                batch_size=batch_size_first_train,
                                 validation_data=(val_X,val_y),
                                 use_multiprocessing=True,
                                 callbacks=callbacks)
@@ -285,12 +224,12 @@ for idx_model, model in enumerate(models_list):
             val_y_pred_denorm = val_y_pred[0,:,:,0]
             val_y_denorm = val_y[0,:,:,0]
 
-        plot_prediction_mae_map(val_y_denorm, val_y_pred_denorm, model, scenario, epochs, val_year, f'{PATH_PLOTS}/{variable_short}_{model}_{short_scenario}_{ts_human}_pred-on-val_end-epoch.png')
+        plot_prediction_mae_map(val_y_denorm, val_y_pred_denorm, model, scenario, epochs, val_year_first_training, f'{PATH_PLOTS}/{variable_short}_{model}_{short_scenario}_{ts_human}_pred-on-val_end-epoch.png')
 
         print('\n\n************************************ PREDICTION ON VALIDATION SET DONE ************************************\n')
 
         elapsed_loop = (time.time() - start_loop_time)
         elapsed_loop_time = str(timedelta(seconds=elapsed_loop))
 
-        df_hypp.loc[len(df_hypp.index)] = [f'First_Training_{ts_human}', model, scenario, ts_human, elapsed_loop_time, elapsed_train_time, epochs, batch_size, start_year_training, '2098', val_year, l1_regularization, l2_regularization, shuffle[0], scale_input, scale_output, feature_range[0], feature_range[1], train_val_ratio[0], train_val_ratio[1], optim.get_config(), loss, weight_initializer, activation_functions, CO2eq_climate_model, withAerosolForcing, 'False']
+        df_hypp.loc[len(df_hypp.index)] = [f'First_Training_{ts_human}', model, scenario, ts_human, elapsed_loop_time, elapsed_train_time, epochs, batch_size_first_train, start_year_first_training, '2098', val_year_first_training, l1_regularization, l2_regularization, shuffle[0], scale_input, scale_output, feature_range[0], feature_range[1], train_val_ratio[0], train_val_ratio[1], optim.get_config(), loss, weight_initializer, activation_functions, CO2eq_climate_model, withAerosolForcing, 'False']
         df_hypp.to_csv(PATH_HYPERPARAMETERS_CSV)
