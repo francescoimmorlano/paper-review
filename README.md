@@ -274,10 +274,10 @@ Acknowledgements and References
 If you use the resource in your research, please cite our paper. At the moment, we offer the bibliography of the arXiv preprint version.
 
 ```
-@misc{immorlano2023transferring,
+@misc{immorlano_2024_transferring,
       title={Transferring climate change knowledge}, 
       author={Francesco Immorlano and Veronika Eyring and Thomas le Monnier de Gouville and Gabriele Accarino and Donatello Elia and Giovanni Aloisio and Pierre Gentine},
-      year={2023},
+      year={2024},
       eprint={2309.14780},
       archivePrefix={arXiv},
       primaryClass={physics.ao-ph}
@@ -289,7 +289,7 @@ License
 
 MIT License
 
-Copyright (c) 2023 Francesco Immorlano
+Copyright (c) 2024 Francesco Immorlano
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
