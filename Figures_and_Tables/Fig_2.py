@@ -8,8 +8,6 @@ import sys
 sys.path.insert(1, './..')
 from lib import *
 
-plot_figure_paper = True
-
 start_year_val = 2017
 end_year_val = 2020
 
@@ -17,7 +15,7 @@ end_year_val = 2020
 window_size = 21
 
 """ Load predictions made by the DNNs after transfer learning on observative data """
-predictions = read_tl_obs_predictions(n_BEST_datasets_per_model_scenario, plot_figure_paper)
+predictions = read_tl_obs_predictions(n_BEST_datasets_per_model_scenario, compute_figures_tables)
 
 """ Load CMIP6 simulations """
 simulations = read_all_cmip6_simulations()
@@ -50,23 +48,23 @@ warming_annual_predictions_means = annual_predictions_means - global_mean_temp_1
 warming_annual_BEST_data_means = annual_BEST_data_means - global_mean_temp_1850_1900
 
 # Compute years to 1.5°C and 2°C thresholds
-years_to_thresholds_ensemble = np.zeros((len(short_scenarios_list_complete), 2))
-for short_scenario_idx, short_scenario in enumerate(short_scenarios_list_complete):
+years_to_thresholds_ensemble = np.zeros((len(short_scenarios_list), 2))
+for short_scenario_idx, short_scenario in enumerate(short_scenarios_list):
     years_to_thresholds_ensemble[short_scenario_idx] = compute_years_to_threshold(window_size, warming_ensemble_predictions_means[short_scenario_idx,:])
 years_to_thresholds_ensemble = np.round(years_to_thresholds_ensemble).astype(int)
 
 # Compute 5-95% for DNNs predictions
-q05_predictions = np.zeros((len(short_scenarios_list_complete),2098-1979+1))
-q95_predictions = np.zeros((len(short_scenarios_list_complete),2098-1979+1))
-for short_scenario_idx, short_scenario in enumerate(short_scenarios_list_complete):
+q05_predictions = np.zeros((len(short_scenarios_list),2098-1979+1))
+q95_predictions = np.zeros((len(short_scenarios_list),2098-1979+1))
+for short_scenario_idx, short_scenario in enumerate(short_scenarios_list):
     for i in range(2098-1979+1):
         q05_predictions[short_scenario_idx,i] = np.percentile(warming_annual_predictions_means[:,:,short_scenario_idx,i],5)
         q95_predictions[short_scenario_idx,i] = np.percentile(warming_annual_predictions_means[:,:,short_scenario_idx,i],95)
 
 # Compute 5-95% for CMIP6 ESMs simulations
-q05_simulations = np.zeros((len(short_scenarios_list_complete),2098-1850+1))
-q95_simulations = np.zeros((len(short_scenarios_list_complete),2098-1850+1))
-for short_scenario_idx, short_scenario in enumerate(short_scenarios_list_complete):
+q05_simulations = np.zeros((len(short_scenarios_list),2098-1850+1))
+q95_simulations = np.zeros((len(short_scenarios_list),2098-1850+1))
+for short_scenario_idx, short_scenario in enumerate(short_scenarios_list):
     for i in range(2098-1850+1):
         q05_simulations[short_scenario_idx,i] = np.percentile(warming_annual_simulations_means[:,short_scenario_idx,i],5)
         q95_simulations[short_scenario_idx,i] = np.percentile(warming_annual_simulations_means[:,short_scenario_idx,i],95)
@@ -85,9 +83,9 @@ for short_scenario_idx, short_scenario in enumerate(short_scenarios_list_complet
 # 8 BEST data spread
 # 9 Paris agreement thresholds
 # 9 2098 temperature value
-fig, axs = plt.subplots(len(short_scenarios_list_complete), figsize=(16,18))
+fig, axs = plt.subplots(len(short_scenarios_list), figsize=(16,18))
 plt.subplots_adjust(hspace=0.4)
-for scenario_short_idx, scenario_short in enumerate(short_scenarios_list_complete):
+for scenario_short_idx, scenario_short in enumerate(short_scenarios_list):
     # BEST
     axs[scenario_short_idx].scatter(np.arange(start_year_training_tl_obs, end_year_training_tl_obs+1), warming_annual_BEST_data_means, linewidth=1, label=f'BEST observational data', color='black', zorder=7)
     # BEST uncertainty shading
@@ -106,7 +104,7 @@ for scenario_short_idx, scenario_short in enumerate(short_scenarios_list_complet
     # CMIP6 5-95% range uncertainty shading
     axs[scenario_short_idx].fill_between(np.arange(start_year_training_tl_obs, end_year_test_tl_obs+1), q05_simulations[scenario_short_idx,1979-1850:], q95_simulations[scenario_short_idx,1979-1850:], facecolor='#FFD67E', zorder=1)
 
-for scenario_short_idx, scenario_short in enumerate(short_scenarios_list_complete):
+for scenario_short_idx, scenario_short in enumerate(short_scenarios_list):
     scenario = f'SSP{scenario_short[-3]}-{scenario_short[-2]}.{scenario_short[-1]}'
     axs[scenario_short_idx].set_title(f'Scenario {scenario} — Temperature in 2098: {round(warming_ensemble_predictions_means[scenario_short_idx,-1],2)} °C [{np.round(q05_predictions[scenario_short_idx,-1],2)}–{np.round(q95_predictions[scenario_short_idx,-1],2)} °C]',
                                       size=22)

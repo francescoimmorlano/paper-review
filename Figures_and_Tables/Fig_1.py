@@ -11,8 +11,6 @@ import sys
 sys.path.insert(1, '..')
 from lib import *
 
-plot_figure_paper = True
-
 """ 
 shuffle_number = '01' to shuffle_number = '22'
 Set shuffle_number = '09' to reproduce Figure 1 present in the paper
@@ -20,15 +18,15 @@ Set shuffle_number = '09' to reproduce Figure 1 present in the paper
 shuffle_number = '09'
 shuffle_idx = int(shuffle_number)-1
 
-models_list_take_out = models_list_complete.copy()
-model_take_out = models_list_complete[shuffle_idx]
+models_list_take_out = models_list.copy()
+model_take_out = models_list[shuffle_idx]
 # Delete the current take out model (i.e., the model which other models are transfer learned on) from the list 
 models_list_take_out.remove(model_take_out)
 
 print(f'\nModel taken out: {model_take_out} - shuffle: {shuffle_number}')
 
 """ Load predictions made by the DNNs after transfer learning on the take-out simulation """
-predictions = read_tl_simulations_predictions_shuffle(shuffle_idx, plot_figure_paper)
+predictions = read_tl_simulations_predictions_shuffle(shuffle_idx, compute_figures_tables)
 
 """ Load CMIP6 take-out simulation """
 take_out_simulation = read_cmip6_simulation(model_take_out)
@@ -61,7 +59,7 @@ annual_simulations_means = ((simulations_C * area_cella).sum(axis=(-1,-2)))/tota
 global_mean_temp_taken_out = np.mean(annual_simulations_means[:,:1900-1850], axis=1)
 
 # Compute warming wrt pre-industrial period
-for idx_short_scenario, short_scenario in enumerate(short_scenarios_list_complete):
+for idx_short_scenario, short_scenario in enumerate(short_scenarios_list):
     annual_predictions_means[:,idx_short_scenario,:] -= global_mean_temp_taken_out[idx_short_scenario]
     annual_simulations_means[idx_short_scenario,:] -= global_mean_temp_taken_out[idx_short_scenario]
 
@@ -69,9 +67,9 @@ for idx_short_scenario, short_scenario in enumerate(short_scenarios_list_complet
 ensemble_predictions_means = np.mean(annual_predictions_means, axis=0)
 
 """ Compute 5-95% for temperatures predicted by the DNNs in 1850-2098 """
-q05_predictions = np.zeros((len(short_scenarios_list_complete),249))
-q95_predictions = np.zeros((len(short_scenarios_list_complete),249))
-for short_scenario_idx, short_scenario in enumerate(short_scenarios_list_complete):
+q05_predictions = np.zeros((len(short_scenarios_list),249))
+q95_predictions = np.zeros((len(short_scenarios_list),249))
+for short_scenario_idx, short_scenario in enumerate(short_scenarios_list):
     for i in range(2098-1850+1):
         q05_predictions[short_scenario_idx,i] = np.percentile(annual_predictions_means[:,short_scenario_idx,i],5)
         q95_predictions[short_scenario_idx,i] = np.percentile(annual_predictions_means[:,short_scenario_idx,i],95)
@@ -111,7 +109,7 @@ gs00 = gs0[0].subgridspec(3, 1, hspace=0.5)
 gs01 = gs0[1].subgridspec(3, 1, hspace=0.5)
 
 """ ax1, ax2, ax3 """
-for scenario_idx in range(len(short_scenarios_list_complete)):
+for scenario_idx in range(len(short_scenarios_list)):
     ax = fig.add_subplot(gs00[scenario_idx, 0])
     for model_idx, model in enumerate(models_list_take_out):
         p11, = ax.plot(np.arange(1850, 2099), annual_predictions_means[model_idx, scenario_idx], linewidth=1.5, linestyle='--', label=f'{model}')

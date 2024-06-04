@@ -8,10 +8,8 @@ import sys
 sys.path.insert(1, '..')
 from lib import *
 
-plot_figure_paper = True
-
 """ Load DNNs predictions after pre-training """
-predictions = read_first_train_predictions(plot_figure_paper)
+predictions = read_first_train_predictions(compute_figures_tables)
 
 """ Load CMIP6 ESMs simulations """
 simulations = read_all_cmip6_simulations()
@@ -25,10 +23,10 @@ annual_predictions_means_C = ((predictions_C * area_cella).sum(axis=(-1,-2)))/to
 annual_simulations_means_C = ((simulations_C * area_cella).sum(axis=(-1,-2)))/total_earth_area
 
 """ Plot """
-fig, axs = plt.subplots(len(short_scenarios_list_complete), 2, figsize=(40,30))
+fig, axs = plt.subplots(len(short_scenarios_list), 2, figsize=(40,30))
 plt.subplots_adjust(wspace=0.1, hspace=0.4)
-for scenario_short_idx, scenario_short in enumerate(short_scenarios_list_complete):
-    for model_idx, model in enumerate(models_list_complete):
+for scenario_short_idx, scenario_short in enumerate(short_scenarios_list):
+    for model_idx, model in enumerate(models_list):
         axs[scenario_short_idx,0].plot(np.arange(1850, 2099), annual_simulations_means_C[model_idx,scenario_short_idx,:], linewidth=1, label=f'{model}')
         axs[scenario_short_idx,1].plot(np.arange(1850, 2099), annual_predictions_means_C[model_idx, scenario_short_idx,:], linewidth=2, linestyle='--', label=f'{model}')
 

@@ -14,8 +14,8 @@ Set shuffle_number = '01' to reproduce Figure S7 present in the paper
 """
 shuffle_number = '01'
 shuffle_idx = int(shuffle_number) - 1
-models_list = models_list_complete.copy()
-model_taken_out = models_list_complete[shuffle_idx]
+models_list = models_list.copy()
+model_taken_out = models_list[shuffle_idx]
 models_list.remove(model_taken_out)
 
 print(f'\nModel taken out: {model_taken_out} - shuffle: {shuffle_number}')
@@ -52,7 +52,7 @@ annual_taken_out_simulation_means = ((taken_out_simulation_C * area_cella).sum(a
 global_mean_temp_taken_out = np.mean(annual_taken_out_simulation_means[:,:1900-1850], axis=1)
 
 # Compute warming wrt pre-industrial period
-for idx_short_scenario, short_scenario in enumerate(short_scenarios_list_complete):
+for idx_short_scenario, short_scenario in enumerate(short_scenarios_list):
     annual_predictions_means[:,idx_short_scenario,:] -= global_mean_temp_taken_out[idx_short_scenario]
     annual_simulations_means[:,idx_short_scenario,:] -= global_mean_temp_taken_out[idx_short_scenario]
     annual_taken_out_simulation_means[idx_short_scenario,:] -= global_mean_temp_taken_out[idx_short_scenario]
@@ -61,17 +61,17 @@ for idx_short_scenario, short_scenario in enumerate(short_scenarios_list_complet
 ensemble_predictions_means = np.mean(annual_predictions_means, axis=0)
 
 """ Compute 5-95% for temperatures predicted by the DNNs in 1850-2098 """
-q05_predictions = np.zeros((len(short_scenarios_list_complete),249))
-q95_predictions = np.zeros((len(short_scenarios_list_complete),249))
-for short_scenario_idx, short_scenario in enumerate(short_scenarios_list_complete):
+q05_predictions = np.zeros((len(short_scenarios_list),249))
+q95_predictions = np.zeros((len(short_scenarios_list),249))
+for short_scenario_idx, short_scenario in enumerate(short_scenarios_list):
     for i in range(2098-1850+1):
         q05_predictions[short_scenario_idx,i] = np.percentile(annual_predictions_means[:,short_scenario_idx,i],5)
         q95_predictions[short_scenario_idx,i] = np.percentile(annual_predictions_means[:,short_scenario_idx,i],95)
 
 """ Compute 5-95% for temperatures simulated by CMIP6 ESMs in 1850-2098 """
-q05_simulations = np.zeros((len(short_scenarios_list_complete),2098-1850+1))
-q95_simulations = np.zeros((len(short_scenarios_list_complete),2098-1850+1))
-for short_scenario_idx, short_scenario in enumerate(short_scenarios_list_complete):
+q05_simulations = np.zeros((len(short_scenarios_list),2098-1850+1))
+q95_simulations = np.zeros((len(short_scenarios_list),2098-1850+1))
+for short_scenario_idx, short_scenario in enumerate(short_scenarios_list):
     for i in range(2098-1850+1):
         q05_simulations[short_scenario_idx,i] = np.percentile(annual_simulations_means[:,short_scenario_idx,i],5)
         q95_simulations[short_scenario_idx,i] = np.percentile(annual_simulations_means[:,short_scenario_idx,i],95)
@@ -83,10 +83,10 @@ ms_diff = np.mean(squared_diff, axis=0)
 rms_years = np.sqrt(ms_diff)
 rmse_scenario = np.mean(rms_years, axis=1)
 
-fig, axs = plt.subplots(len(short_scenarios_list_complete), figsize=(16,18))
+fig, axs = plt.subplots(len(short_scenarios_list), figsize=(16,18))
 plt.subplots_adjust(hspace=0.5)
 
-for scenario_short_idx, scenario_short in enumerate(short_scenarios_list_complete):
+for scenario_short_idx, scenario_short in enumerate(short_scenarios_list):
     scenario = f'SSP{scenario_short[-3]}-{scenario_short[-2]}.{scenario_short[-1]}'
     for model_idx, model in enumerate(models_list):
         # DNNs predictions

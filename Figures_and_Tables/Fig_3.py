@@ -8,10 +8,8 @@ import sys
 sys.path.insert(1, './..')
 from lib import *
 
-plot_figure_paper = True
-
 """ Load DNNs predictions """
-predictions = read_tl_obs_predictions(n_BEST_datasets_per_model_scenario, plot_figure_paper)
+predictions = read_tl_obs_predictions(n_BEST_datasets_per_model_scenario, compute_figures_tables)
 
 """ Load CMIP6 ESMs simulations """
 simulation_array = read_all_cmip6_simulations()
@@ -33,20 +31,19 @@ warming_predictions_means_2081_2098 = warming_predictions_means[:,:,:,2081-1979:
 warming_simulations_means_2081_2098 = warming_simulations_means[:,:,2081-1850:]
 
 # Compute median, 5% and 95%
-median_predictions_means_2081_2098 = np.zeros((len(short_scenarios_list_complete),18))
-median_simulations_means_2081_2098 = np.zeros((len(short_scenarios_list_complete),18))
-q05_predictions_means_2081_2098 = np.zeros((len(short_scenarios_list_complete),18))
-q05_simulations_means_2081_2098 = np.zeros((len(short_scenarios_list_complete),18))
-q95_predictions_means_2081_2098 = np.zeros((len(short_scenarios_list_complete),18))
-q95_simulations_means_2081_2098 = np.zeros((len(short_scenarios_list_complete),18))
-for short_scenario_idx, short_scenario in enumerate(short_scenarios_list_complete):
+median_predictions_means_2081_2098 = np.zeros((len(short_scenarios_list),2098-2081+1))
+median_simulations_means_2081_2098 = np.zeros((len(short_scenarios_list),2098-2081+1))
+q05_predictions_means_2081_2098 = np.zeros((len(short_scenarios_list),2098-2081+1))
+q05_simulations_means_2081_2098 = np.zeros((len(short_scenarios_list),2098-2081+1))
+q95_predictions_means_2081_2098 = np.zeros((len(short_scenarios_list),2098-2081+1))
+q95_simulations_means_2081_2098 = np.zeros((len(short_scenarios_list),2098-2081+1))
+for short_scenario_idx, short_scenario in enumerate(short_scenarios_list):
     # DNNs predictions
-    for i in range(18):
+    for i in range(2098-2081+1):
         median_predictions_means_2081_2098[short_scenario_idx,i] = np.median(np.ravel(warming_predictions_means_2081_2098[:,:,short_scenario_idx,i]))
         q05_predictions_means_2081_2098[short_scenario_idx,i] = np.percentile(warming_predictions_means_2081_2098[:,:,short_scenario_idx,i],5)
         q95_predictions_means_2081_2098[short_scenario_idx,i] = np.percentile(warming_predictions_means_2081_2098[:,:,short_scenario_idx,i],95)
     # CMIP6 ESMs simulations
-    for i in range(18):
         median_simulations_means_2081_2098[short_scenario_idx,i] = np.median(np.ravel(warming_simulations_means_2081_2098[:,short_scenario_idx,i]))
         q05_simulations_means_2081_2098[short_scenario_idx,i] = np.percentile(warming_simulations_means_2081_2098[:,short_scenario_idx,i],5)
         q95_simulations_means_2081_2098[short_scenario_idx,i] = np.percentile(warming_simulations_means_2081_2098[:,short_scenario_idx,i],95)

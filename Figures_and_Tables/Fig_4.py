@@ -11,19 +11,17 @@ import sys
 sys.path.insert(1, '..')
 from lib import *
 
-plot_figure_paper = True
-
 # 0 for SSP2-4.5
 idx_scenario = 0
 
 """ Load DNNs predictions """
-predictions = read_tl_obs_predictions(n_BEST_datasets_per_model_scenario, plot_figure_paper)
+predictions = read_tl_obs_predictions(n_BEST_datasets_per_model_scenario, compute_figures_tables)
 
 """ Load CMIP6 ESMs simulations """
 simulations = read_all_cmip6_simulations()
 
 """ Load BEST observational data """
-BEST_maps = read_BEST_data()
+BEST_maps = read_BEST_data(PATH_BEST_DATA)
 
 pickle_in = open('lons.pickle', 'rb')
 lons = pickle.load(pickle_in)

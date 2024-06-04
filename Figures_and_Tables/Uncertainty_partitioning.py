@@ -8,18 +8,16 @@ import sys
 sys.path.insert(1, './..')
 from lib import *
 
-plot_figure_paper = True
-
 """ Load CMIP6 simulations """
 simulations = read_all_cmip6_simulations()
 
 """ Load predictions made by the DNNs after transfer learning on observational data """
-predictions = read_tl_obs_predictions(n_BEST_datasets_per_model_scenario, plot_figure_paper)
+predictions = read_tl_obs_predictions(n_BEST_datasets_per_model_scenario, compute_figures_tables)
 
 """ Compute 10-year running mean by grid point """
-running_avg = np.zeros((len(short_scenarios_list_complete), len(models_list_complete), 240, 64, 128))
-for idx_scenario_short, scenario_short in enumerate(short_scenarios_list_complete):
-    for idx_model, model in enumerate(models_list_complete):
+running_avg = np.zeros((len(short_scenarios_list), len(models_list), 240, 64, 128))
+for idx_scenario_short, scenario_short in enumerate(short_scenarios_list):
+    for idx_model, model in enumerate(models_list):
         for rows in range(simulations.shape[3]):
             for columns in range(simulations.shape[4]):
                 running_avg[idx_scenario_short, idx_model, :, rows, columns] = moving_average(simulations[idx_model, idx_scenario_short, :, rows, columns])
@@ -95,9 +93,9 @@ ax2.tick_params(axis='x', labelsize=11)
 ax2.tick_params(axis='y', labelsize=11)
 ax2.legend(loc='upper left')
 ax2.grid()
-plt.text(x=0.08, y=0.92, s='a', fontweight='bold',
+plt.text(x=0.08, y=0.92, s='A', fontweight='bold',
         fontsize=20, transform=fig.transFigure)
-plt.text(x=0.505, y=0.92, s='b', fontweight='bold',
+plt.text(x=0.505, y=0.92, s='B', fontweight='bold',
         fontsize=20, transform=fig.transFigure)
 plt.savefig('Fig_S12.png', dpi=300, bbox_inches='tight')
 
@@ -128,3 +126,13 @@ plt.text(x=0.08, y=0.92, s='A', fontweight='bold',
 plt.text(x=0.505, y=0.92, s='B', fontweight='bold',
         fontsize=20, transform=fig.transFigure)
 plt.savefig('Fig_S13.png', dpi=300, bbox_inches='tight')
+
+M_near_term = M[2030-1979:2039-1979+1]
+M_predictions_near_term = M_predictions[2030-1979:2039-1979+1]
+print('\nTable S6 — Model uncertainty reduction in the near term (2030–2039):')
+print(np.round(np.mean((M_near_term - M_predictions_near_term) / M_near_term * 100),1))
+
+M_long_term = M[2085-1979:2094-1979+1]
+M_predictions_long_term = M_predictions[2085-1979:2094-1979+1]
+print('\nTable S7 — Model uncertainty reduction in the long term (2085–2094):')
+print(np.round(np.mean((M_long_term - M_predictions_long_term) / M_long_term * 100),1))

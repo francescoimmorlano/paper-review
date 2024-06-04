@@ -10,16 +10,14 @@ import sys
 sys.path.insert(1, './..')
 from lib import *
 
-plot_figure_paper = True
-
 """ Load DNNs predictions after TL on observations """
-predictions = read_tl_obs_predictions(n_BEST_datasets_per_model_scenario, plot_figure_paper)
+predictions = read_tl_obs_predictions(n_BEST_datasets_per_model_scenario, compute_figures_tables)
 
 """ Load CMIP6 ESMs simulations"""
 simulations = read_all_cmip6_simulations()
 
 """ Loada BEST observational data """
-BEST_data_array = read_BEST_data()
+BEST_data_array = read_BEST_data(PATH_BEST_DATA)
 
 pickle_in = open('lons.pickle', 'rb')
 lons = pickle.load(pickle_in)
@@ -62,7 +60,7 @@ size_colorbar_labels = 30
 size_colorbar_ticks = 26
 plt.rcParams['font.sans-serif'] = 'Arial'
 
-for scenario_idx, scenario_short in enumerate(short_scenarios_list_complete):
+for scenario_idx, scenario_short in enumerate(short_scenarios_list):
     scenario = f'SSP{scenario_short[-3]}-{scenario_short[-2]}.{scenario_short[-1]}'
 
     min_value = np.concatenate((prediction_warming[scenario_idx,:,:], simulation_warming[scenario_idx,:,:])).min()

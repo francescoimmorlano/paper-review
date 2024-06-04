@@ -10,10 +10,8 @@ import sys
 sys.path.insert(1, '..')
 from lib import *
 
-plot_figure_paper = True
-
 """ Load DNNs predictions after pre-training """
-predictions = read_first_train_predictions(plot_figure_paper)
+predictions = read_first_train_predictions(compute_figures_tables)
 
 """ Load CMIP6 simulations """
 simulations = read_all_cmip6_simulations()
@@ -61,7 +59,7 @@ fig.subplots_adjust(top=0.97, wspace=0.2, hspace = 0.2)
 
 axs=axs.flatten()
 
-for idx_short_scenario, short_scenario in enumerate(short_scenarios_list_complete):
+for idx_short_scenario, short_scenario in enumerate(short_scenarios_list):
 
     scenario = f'SSP{short_scenario[-3]}-{short_scenario[-2]}.{short_scenario[-1]}'
 

@@ -8,8 +8,6 @@ import sys
 sys.path.insert(1, './..')
 from lib import *
 
-plot_figure_paper = True
-
 """ Load CMIP6 ESMs simulations """
 simulations =  read_all_cmip6_simulations()
 
@@ -17,13 +15,13 @@ ensemble_statistics = np.zeros((3,3,22))            # scenarios, (median, q05, 
 simulations_statistics = np.zeros((3,4,22))         # scenarios, (median, q05, q95, avg_taken_out), models
 first_training_statistics = np.zeros((3,3,22))      # scenarios, (median, q05, q95), models
 
-for idx_shuffle in range(len(models_list_complete)):
+for idx_shuffle in range(len(models_list)):
 
     """ Load DNNs predictions after TL on the take-out model"""
-    predictions_tl_on_simulations = read_tl_simulations_predictions_shuffle(idx_shuffle, plot_figure_paper)
+    predictions_tl_on_simulations = read_tl_simulations_predictions_shuffle(idx_shuffle, compute_figures_tables)
 
     remaining_models_idx = []
-    for i in range(len(models_list_complete)):
+    for i in range(len(models_list)):
         if i == idx_shuffle:
             continue
         remaining_models_idx.append(i)
@@ -52,17 +50,17 @@ for idx_shuffle in range(len(models_list_complete)):
     warming_simulations_remaining_means_2081_2098 = warming_simulations_remaining_means[:,:,2081-1850:]
 
     # Compute median, 5% and 95%
-    median_predictions_means_2081_2098 = np.zeros((len(short_scenarios_list_complete),18))
-    median_simulations_remaining_2081_2098 = np.zeros((len(short_scenarios_list_complete),18))
+    median_predictions_means_2081_2098 = np.zeros((len(short_scenarios_list),2098-2081+1))
+    median_simulations_remaining_2081_2098 = np.zeros((len(short_scenarios_list),2098-2081+1))
 
-    q05_predictions_means_2081_2098 = np.zeros((len(short_scenarios_list_complete),18))
-    q05_simulations_remaining_means_2081_2098 = np.zeros((len(short_scenarios_list_complete),18))
+    q05_predictions_means_2081_2098 = np.zeros((len(short_scenarios_list),2098-2081+1))
+    q05_simulations_remaining_means_2081_2098 = np.zeros((len(short_scenarios_list),2098-2081+1))
 
-    q95_predictions_means_2081_2098 = np.zeros((len(short_scenarios_list_complete),18))
-    q95_simulations_remaining_means_2081_2098 = np.zeros((len(short_scenarios_list_complete),18))
+    q95_predictions_means_2081_2098 = np.zeros((len(short_scenarios_list),2098-2081+1))
+    q95_simulations_remaining_means_2081_2098 = np.zeros((len(short_scenarios_list),2098-2081+1))
 
-    for short_scenario_idx, short_scenario in enumerate(short_scenarios_list_complete):
-        for i in range(18):
+    for short_scenario_idx, short_scenario in enumerate(short_scenarios_list):
+        for i in range(2098-2081+1):
             # DNNs predictions after TL on simulations
             median_predictions_means_2081_2098[short_scenario_idx,i] = np.median(warming_predictions_means_2081_2098[:,short_scenario_idx,i])
             q05_predictions_means_2081_2098[short_scenario_idx,i] = np.percentile(warming_predictions_means_2081_2098[:,short_scenario_idx,i],5)
@@ -128,7 +126,7 @@ r1 = 0 * barwidth
 l2 = r1
 r2 = +1 * barwidth
 
-for idx_short_scenario, short_scenario in enumerate(short_scenarios_list_complete):
+for idx_short_scenario, short_scenario in enumerate(short_scenarios_list):
     
     scenario = f'SSP{short_scenario[-3]}-{short_scenario[-2]}.{short_scenario[-1]}'
     upper_lim = int(np.ceil(np.max([np.max(ensemble_statistics[idx_short_scenario,2,:]),
