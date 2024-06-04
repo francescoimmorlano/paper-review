@@ -8,8 +8,8 @@ import numpy as np
 demo_download = False
 demo_no_download = False
 
-# Set to True if a figure must be plotted 
-plot_figure = False
+# Set to True if a figure or table must be computed
+compute_figures_tables = True
 
 ts = datetime.now()
 ts_human = ts.strftime('%Y-%m-%d_%H-%M-%S')
@@ -25,7 +25,7 @@ global_mean_temp_1850_1900 = 13.798588235294114
 global_mean_temp_1850_2000 = 14.007112582781458
 total_earth_area = 5.1009974e+14
 
-if plot_figure: path_area_cella = '../area_cella.csv'
+if compute_figures_tables: path_area_cella = '../area_cella.csv'
 else: path_area_cella = './area_cella.csv'
 
 with open(path_area_cella, newline='') as csvfile:
@@ -182,18 +182,21 @@ if demo_download or demo_no_download:
   models_short_list = ['cnrm_esm2_1', 'fgoals_f3_l', 'miroc6']
   short_scenarios_list = ['ssp245']
   if demo_download:
-    ROOT_EXPERIMENTS = './Demo_download'
+    ROOT_EXPERIMENTS = './Demo_download/Experiments'
     ROOT_SOURCE_DATA = './Demo_download/Data'
   elif demo_no_download:
-    ROOT_EXPERIMENTS = './Demo_no_download'
+    ROOT_EXPERIMENTS = './Demo_no_download/Experiments'
     ROOT_SOURCE_DATA = './Demo_no_download/Data'
 else: 
   models_list = models_list_complete
   models_short_list = models_short_list_complete
   short_scenarios_list = short_scenarios_list_complete
-  ROOT_EXPERIMENTS = '.'
-  if plot_figure: ROOT_SOURCE_DATA = '../Source_data'
-  else: ROOT_SOURCE_DATA = './Source_data'
+  if compute_figures_tables: 
+    ROOT_EXPERIMENTS = '../Experiments'
+    ROOT_SOURCE_DATA = '../Source_data'
+  else: 
+    ROOT_EXPERIMENTS = './Experiments'
+    ROOT_SOURCE_DATA = './Source_data'
 
 PATH_ANNUAL_SIMULATIONS_DIRECTORY = f'{ROOT_SOURCE_DATA}/CMIP6_data/near_surface_air_temperature/Annual_uniform_remapped'
 PATH_BEST_DATA = f'{ROOT_SOURCE_DATA}/BEST_data/BEST_regridded_annual_1979-2022.nc'
