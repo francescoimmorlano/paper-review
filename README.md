@@ -152,7 +152,7 @@ Run the full version
 --------------------
 
 The full version of the entire workflow can be run.
-Once `BEST_data.zip` and `CMIP6_data.zip` have been downloaded from <a href="https://doi.org/10.5281/zenodo.10878984
+Once `BEST_data.zip` and `CMIP6_data.zip` have been downloaded from <a href="https://zenodo.org/records/12666540
 ">Zenodo</a>, the files needed to run the entire workflow must be organised according to the following hierarchy:
 
 ```plain
@@ -189,7 +189,7 @@ Now, the scripts should be executed in the following order:
 Reproduce the results present in the paper
 ------------------------------------------
 
-The figures and the results present in the paper can be reproduced. The variable `compute_figures_tables`  in `variables.py` must be set to `True`. After having downloaded `BEST_data.zip`, `CMIP6_data.zip`, `First_training_obs.zip`, `First_Training.zip`, `Transfer_Learning_on_Observations.zip`, `Transfer_Learning_on_Simulations_AM_families.zip`, `Transfer_Learning_on_Simulations_reverse.zip`, and `Transfer_Learning_on_Simulations.zip` from <a href="https://doi.org/10.5281/zenodo.10878984
+The figures and the results present in the paper can be reproduced. The variable `compute_figures_tables`  in `variables.py` must be set to `True`. After having downloaded `BEST_data.zip`, `CMIP6_data.zip`, `First_training_obs.zip`, `First_Training.zip`, `Transfer_Learning_on_Observations.zip`, `Transfer_Learning_on_Simulations_AM_families.zip`, `Transfer_Learning_on_Simulations_reverse.zip`, and `Transfer_Learning_on_Simulations.zip` from <a href="https://zenodo.org/records/12666540
 ">Zenodo</a>, the files needed to reproduce the results shall be organized as the following hierarchy:
 
 ```plain
