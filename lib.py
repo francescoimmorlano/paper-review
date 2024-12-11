@@ -2,8 +2,10 @@
 Author: Francesco Immorlano
 """
 
-from numpy import roots
 import pandas as pd
+from scipy.interpolate import UnivariateSpline
+from joblib import Parallel, delayed
+# from pygam import s, LinearGAM
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
 from mpl_toolkits.axes_grid1 import make_axes_locatable
@@ -14,7 +16,6 @@ from tqdm import tqdm
 from variables import *
 
 import pylab as pl
-
 
 plt.rcParams.update({'font.sans-serif': 'Arial'})
 
@@ -36,7 +37,7 @@ def retrieve_cds_cmip6(c, variable, variable_short, model, experiment, level, t_
         Pressure level of the variable to download (e.g., 'single_levels', '1', '50')
     t_resolution : string
         Temporal resolution of the data to dowanload
-    data_format : string 
+    data_format : string
         Format of the data to download (e.g., 'zip')
     download_directory : string
         Path of the directory where downloaded data have to be saved
@@ -48,9 +49,9 @@ def retrieve_cds_cmip6(c, variable, variable_short, model, experiment, level, t_
     print(f'\nDownloading {model} - {experiment} ...')
     if not os.path.isdir(download_directory):
         os.makedirs(download_directory)
-    
+
     download_file = f'{download_directory}/{variable_short}-{model}-{experiment}.zip'
-    
+
     c.retrieve(
     'projections-cmip6',
     {
@@ -63,7 +64,7 @@ def retrieve_cds_cmip6(c, variable, variable_short, model, experiment, level, t_
     },
     download_file)
 
-def plot_prediction_mae_map(val_y, val_y_pred, model_name, scenario, epoch, val_year, PATH_TO_SAVE_IMG):
+def plot_prediction_mae_map(val_y, val_y_pred, model_name, scenario, epoch, PATH_TO_SAVE_IMG):
     """
     Plot DNN prediction, CMIP6 simulation and MAE temperature maps.
 
@@ -88,23 +89,24 @@ def plot_prediction_mae_map(val_y, val_y_pred, model_name, scenario, epoch, val_
     -------
     -
     """
-    val_predictions_error = val_y_pred[:,:]-val_y[:,:]
+    val_predictions_error = val_y_pred[:,:,:]-val_y[:,:,:]
     val_predictions_absolute_error = np.abs(val_predictions_error)
-    val_predictions_rmse = np.sqrt(np.mean(val_predictions_error**2, axis=(0,1)))
-    val_predictions_mae = val_predictions_absolute_error.mean(axis=(0,1))
+    val_predictions_mae = val_predictions_absolute_error.mean(axis=(0,1,2))
+
+    val_predictions_rmse = np.sqrt(np.mean(val_predictions_error**2, axis=(0,1,2)))
 
     min_temp = np.concatenate((val_y, val_y_pred)).min()
     max_temp = np.concatenate((val_y, val_y_pred)).max()
 
     fig = plt.figure(figsize=(20,13))
-    fig.suptitle(f'Near surface air temperature\n\nModel: {model_name} - Scenario: {scenario} - Epoch: {epoch} - Year: {str(val_year)}', y=0.76, fontsize=14)
+    fig.suptitle(f'Near surface air temperature\n\nModel: {model_name} - Scenario: {scenario} - Epoch: {epoch} - Val years', y=0.76, fontsize=14)
     fig.subplots_adjust(top=0.97, wspace=0.10, hspace = 0.2)
 
     ax1 = fig.add_subplot(1, 3, 1)
     ax1.xaxis.set_major_locator(MaxNLocator(integer=True))
     ax1.yaxis.set_major_locator(MaxNLocator(integer=True))
     ax1.set_title('NN prediction', loc='center')
-    img1 = ax1.imshow(val_y_pred[:,:], interpolation='nearest', origin = 'lower', vmin=min_temp, vmax=max_temp)
+    img1 = ax1.imshow(np.mean(val_y_pred[:,:,:], axis=0), interpolation='nearest', origin = 'lower', vmin=min_temp, vmax=max_temp)
     divider = make_axes_locatable(ax1)
     cax1 = divider.append_axes('bottom', size='5%', pad='5%')
     cax1.xaxis.set_ticks_position("bottom")
@@ -117,7 +119,7 @@ def plot_prediction_mae_map(val_y, val_y_pred, model_name, scenario, epoch, val_
     ax2.xaxis.set_major_locator(MaxNLocator(integer=True))
     ax2.yaxis.set_major_locator(MaxNLocator(integer=True))
     ax2.set_title('CMIP6 model simulation (Ground Truth)', loc='center')
-    img2 = ax2.imshow(val_y[:,:], interpolation='nearest', origin = 'lower', vmin=min_temp, vmax=max_temp)
+    img2 = ax2.imshow(np.mean(val_y[:,:], axis=0), interpolation='nearest', origin = 'lower', vmin=min_temp, vmax=max_temp)
     divider = make_axes_locatable(ax2)
     cax2 = divider.append_axes('bottom', size='5%', pad='5%')
     cax2.xaxis.set_ticks_position("bottom")
@@ -130,7 +132,7 @@ def plot_prediction_mae_map(val_y, val_y_pred, model_name, scenario, epoch, val_
     ax3.xaxis.set_major_locator(MaxNLocator(integer=True))
     ax3.yaxis.set_major_locator(MaxNLocator(integer=True))
     ax3.set_title(f'RMSE: {round(val_predictions_rmse,2)} - MAE: {round(val_predictions_mae,2)}', loc='center')
-    img3 = ax3.imshow(val_predictions_absolute_error[:,:], interpolation='nearest', origin='lower')
+    img3 = ax3.imshow(np.mean(val_predictions_absolute_error[:,:,:], axis=0), interpolation='nearest', origin='lower')
     divider = make_axes_locatable(ax3)
     cax3 = divider.append_axes('bottom', size='5%', pad='5%')
     cax3.xaxis.set_ticks_position("bottom")
@@ -213,7 +215,7 @@ def plot_train_val_loss_curve(train_loss, val_loss, loss, path_to_save):
     num_epochs = len(train_loss)
 
     ax.plot(np.arange(0, num_epochs), train_loss, label=f'Training {loss_label}')
-    
+
     # val_loss is None we don't have a validation set, thus all years are destined to the training set
     if val_loss != None:
         ax.plot(np.arange(0, num_epochs), val_loss, label=f'Validation {loss_label}')
@@ -234,19 +236,19 @@ def sets_setup(X, y, splitting_ratio=(0.7,0.8), shuffle=(True, 42)):
         List of float values representing the input for the DNN
     y : ndarray
         3D array containing the maps representing the target for the DNN.
-        
+
         `shape: (n,rows,cols)`
     splitting_ratio : tuple
         Tuple of two float values representing the percentage of samples to assign to be assigned
-        to train and test set, respectively. The remaining will be assigned to the test set. 
-        
+        to train and test set, respectively. The remaining will be assigned to the test set.
+
         `default: (0.7,0.8)` to assign 70% samples to train set, 10% samples to val set and 10% samples to test set
     shuffle: tuple
         Tuple of a bool value representing a flag to decide to if the shuffle should be applied or not (first element of the tuple),
         and an int value representing the shuffle seed (second element of the tuple).
-        
+
         `default: (True,42)`
-    
+
     Returns
     -------
     [train_X, train_y] : list
@@ -254,14 +256,14 @@ def sets_setup(X, y, splitting_ratio=(0.7,0.8), shuffle=(True, 42)):
     [val_X, val_y] : list
         List of array of float values representing the input (first element of the list) and 3D array representing the output (second element of the list) in the validation set
     [test_X, test_y] : list
-        List of array of float values representing the input (first element of the list) and 3D array representing the output (second element of the list) in the test set 
+        List of array of float values representing the input (first element of the list) and 3D array representing the output (second element of the list) in the test set
     """
     idx_array = np.arange(0, X.shape[0], 1, dtype=int)
 
     if shuffle[0]:
         np.random.seed(shuffle[1])
         np.random.shuffle(idx_array)
-    
+
     train_idx, val_idx, test_idx = np.split(idx_array, [int(splitting_ratio[0] * X.shape[0]), int(splitting_ratio[1] * X.shape[0])])
 
     train_X, train_y = X[train_idx], y[train_idx,:,:]
@@ -326,7 +328,7 @@ def solver(f, f0, x0, epsilon, max_iter):
 
 def get_DeltaR(C):
     """
-    Implement simplified expression for radiative forcing relative to 
+    Implement simplified expression for radiative forcing relative to
     pre-industrial (1750) levels by changes in surface air mole fractions of CO2
     reported in Table 3 of https://doi.org/10.5194/gmd-13-3571-2020.
 
@@ -339,7 +341,7 @@ def get_DeltaR(C):
     -------
     RF_CO2 : value
         Radiative Forcing value computed for 'C' CO2eq value
-        """ 
+        """
     a1 = -2.4785e-7 #W m-2 ppm -2
     b1 =  0.00075906 # W m-2 ppm -1
     c1 =  -0.0021492 # W m-2 ppb -0.5
@@ -355,7 +357,7 @@ def get_DeltaR(C):
     N0 = 273.87 #ppb
     alpha_N2O = c1*np.sqrt(N0)
     RF_CO2 = (alpha_prime+alpha_N2O)*np.log(C/C0)
-    
+
     return RF_CO2
 
 def read_CO2_equivalent(maindir, ssp_scenario, model, withAerosolForcing, start_year=1850):
@@ -401,22 +403,22 @@ def read_CO2_equivalent(maindir, ssp_scenario, model, withAerosolForcing, start_
     if withAerosolForcing:
         myvariable  = 'Effective Radiative Forcing|Greenhouse Gases + Aerosols'
         myData = df[(df['climate_model'] == mymodel) & (df['scenario'] == myscenario) & (df['variable'] == myvariable)]
-        DeltaR = myData.iloc[0,6+start_idx:255].values 
+        DeltaR = myData.iloc[0,6+start_idx:255].values
     elif not withAerosolForcing:
         myvariable  = 'Effective Radiative Forcing|Greenhouse Gases'
         myData = df[(df['climate_model'] == mymodel) & (df['scenario'] == myscenario) & (df['variable'] == myvariable)]
-        DeltaR = myData.iloc[0,6+start_idx:255].values 
-        
+        DeltaR = myData.iloc[0,6+start_idx:255].values
+
     CO2_eq = []
     year_list = []
     for i in range(len(DeltaR)):
         CO2_eq.append(solver(get_DeltaR,DeltaR[i],500.,1e-5,50))
         year_list.append(1850 + i)
-    
+
     cells = {'Year': year_list,
             'CO2EQ': CO2_eq}
     data = pd.DataFrame(cells, columns = ['Year', 'CO2EQ'])
-    
+
     return data, CO2_eq, year_list
 
 def read_all_cmip6_simulations():
@@ -430,7 +432,7 @@ def read_all_cmip6_simulations():
     Returns
     -------
         ndarray containing CMIP6 maps
-        
+
         `shape: (22, 3, 249, 64, 128)`
     """
 
@@ -445,7 +447,7 @@ def read_all_cmip6_simulations():
         pickle_out = open(f'{PATH_ANNUAL_SIMULATIONS_DIRECTORY}/Annual_uniform_remapped.pickle', 'wb')
         pickle.dump(simulation_models_array, pickle_out)
         pickle_out.close()
-    
+
     return simulation_models_array
 
 def read_cmip6_simulation(model_to_read):
@@ -456,7 +458,7 @@ def read_cmip6_simulation(model_to_read):
         matching_simulations = [simulation_file for simulation_file in simulations_files_list if ((model_to_read in simulation_file and 'historical' in simulation_file)
                                                                                                 or (model_to_read in simulation_file and scenario_short in simulation_file))]
         # maching_simulations[0] is the historical and matching_simulations[1] is the SSP simulation because of the sort operation
-        # (for each model, the first simulation is the historical and then the SSP)  
+        # (for each model, the first simulation is the historical and then the SSP)
         nc_historical_data = Dataset(f'{PATH_ANNUAL_SIMULATIONS_DIRECTORY}/{matching_simulations[0]}', mode='r+', format='NETCDF3_CLASSIC')
         nc_ssp_data = Dataset(f'{PATH_ANNUAL_SIMULATIONS_DIRECTORY}/{matching_simulations[1]}', mode='r+', format='NETCDF3_CLASSIC')
         n_historical_years = nc_historical_data[variable_short].shape[0]
@@ -470,7 +472,7 @@ def read_cmip6_simulation(model_to_read):
             model_simulation[scenario_idx,n_historical_years:,:,:] = nc_ssp_data[variable_short][:-2,:,:]
         nc_historical_data.close()
         nc_ssp_data.close()
-    
+
     return model_simulation
 
 def read_BEST_data(PATH_BEST_DATA):
@@ -485,7 +487,7 @@ def read_BEST_data(PATH_BEST_DATA):
     Returns
     -------
         ndarray containing BEST observative maps
-        
+
         `shape: (44, 64, 128)`
     """
     nc_BEST_data = Dataset(f'{PATH_BEST_DATA}', mode='r+', format='NETCDF3_CLASSIC')
@@ -507,7 +509,7 @@ def read_BEST_data_uncertainty():
     Returns
     -------
         list containing the uncertainty values of observative data for each year
-        
+
         `len: 44`
     """
     uncertainty_df = pd.read_csv(f'{PATH_BEST_DATA_UNCERTAINTY}', header=None, delim_whitespace=True)
@@ -520,16 +522,16 @@ def read_BEST_data_uncertainty():
 
     return annual_uncertainties_list
 
-def read_first_train_predictions(compute_figures_tables, FIRST_TRAINING_DIRECTORY=None):
+def read_first_train_predictions(compute_figures_tables_paper, FIRST_TRAINING_DIRECTORY=None):
     """
     Read predictions after first training on CMIP6 simulation data
 
     Parameters
-    ----------   
-    FIRST_TRAINING_DIRECTORY : str 
+    ----------
+    FIRST_TRAINING_DIRECTORY : str
         (Optional) Name of the directory wherein the predicitons after first training on CMIP6 simulations was stored (Format: First_Training_YYYY-MM-DD_hh-mm-ss).
         Set to None in case of plotting figures from the paper.
-    
+
     compute_figures_tables : bool
         Flag that is True when the routine is used to plot one of the figures or tables of the manuscript.
 
@@ -538,7 +540,7 @@ def read_first_train_predictions(compute_figures_tables, FIRST_TRAINING_DIRECTOR
         ndarray containing predictions generated after pre-training on CMIP6 simulation data
         `shape: (22, 3, 249, 64, 128)`
     """
-    if compute_figures_tables:
+    if compute_figures_tables_paper:
         pickle_in = open(f'{ROOT_SOURCE_DATA}/First_Training/First_Training_predictions.pickle','rb')
         predictions_first_training = pickle.load(pickle_in)
     elif os.path.exists(f'{ROOT_EXPERIMENTS}/First_Training/{FIRST_TRAINING_DIRECTORY}/Predictions/{FIRST_TRAINING_DIRECTORY}.pickle'):
@@ -548,7 +550,7 @@ def read_first_train_predictions(compute_figures_tables, FIRST_TRAINING_DIRECTOR
         predictions_first_training = np.zeros((len(models_list), len(short_scenarios_list), n_training_years_first_training, 64, 128))
         for model_idx, model in enumerate(models_list):
             for scenario_idx, scenario_short in enumerate(short_scenarios_list):
-                PREDICTIONS_DIRECTORY = f'{ROOT_EXPERIMENTS}/First_Training/tas_{model}_{scenario_short}'
+                PREDICTIONS_DIRECTORY = f'{ROOT_EXPERIMENTS}/First_Training/{FIRST_TRAINING_DIRECTORY}/Predictions/tas_{model}_{scenario_short}'
                 model_train_set_predictions_filenames_list = os.listdir(PREDICTIONS_DIRECTORY)
                 model_train_set_predictions_filenames_list = [fn for fn in model_train_set_predictions_filenames_list if (fn.endswith('.csv'))]
                 model_train_set_predictions_filenames_list.sort()
@@ -564,29 +566,29 @@ def read_first_train_predictions(compute_figures_tables, FIRST_TRAINING_DIRECTOR
         pickle_out.close()
     return predictions_first_training
 
-def read_tl_obs_predictions(n_BEST_datasets_per_model_scenario, compute_figures_tables, TL_OBS_DIRECTORY=None):
+def read_tl_obs_predictions(n_BEST_datasets_per_model_scenario, compute_figures_tables_paper, TL_OBS_DIRECTORY=None):
     """
     Read predictions after fine tuning on observative data
 
     Parameters
     ----------
-    n_BEST_datasets_per_model_scenario : int 
+    n_BEST_datasets_per_model_scenario : int
         Number of BEST observative datasets generated by adding a noise sampled from a Gaussian distribution with 0 mean and stddev equal to 1
-    
-    compute_figures_tables : bool
+
+    compute_figures_tables_paper : bool
         Flag that is True when the routine is used to plot one of the figures or tables of the manuscript.
-        
-    TL_OBS_DIRECTORY : str 
+
+    TL_OBS_DIRECTORY : str
         (Optional) Name of the directory wherein the Transfer Learning on observations was stored (Format: Transfer_learning_obs_YYYY-MM-DD_hh-mm-ss).
         Set to None in case of plotting figures from the paper.
 
     Returns
     -------
         ndarray containing predictions generated after fine tuning on observative data
-        
+
         `shape: (5, 22, 3, 120, 64, 128)`
     """
-    if compute_figures_tables:
+    if compute_figures_tables_paper:
         pickle_in = open(f'{ROOT_SOURCE_DATA}/Transfer_Learning_on_Observations/Transfer_learning_obs.pickle','rb')
         predictions_tl = pickle.load(pickle_in)
     elif os.path.exists(f'{ROOT_EXPERIMENTS}/Transfer_Learning_on_Observations/{TL_OBS_DIRECTORY}/{TL_OBS_DIRECTORY}.pickle'):
@@ -627,30 +629,35 @@ def read_tl_obs_predictions(n_BEST_datasets_per_model_scenario, compute_figures_
         pickle_out.close()
     return predictions_tl
 
-def read_tl_simulations_predictions_shuffle(shuffle_idx, compute_figures_tables, atmospheric_model_family=None, TL_DIRECTORY=None):
+def read_tl_simulations_predictions_shuffle(shuffle_idx, compute_figures_tables_paper, TL_DIRECTORY, AM_families, atmospheric_model_family):
     """
     Read predictions after transfer learning on taken-out CMIP6 simulation related to shuffle_idx
 
     Parameters
-    ----------   
+    ----------
     shuffle_idx : int
         Index (0 to 21) associated to the taken-out model.
 
     compute_figures_tables : bool
         Flag that is True when the routine is used to plot one of the figures or tables of the manuscript.
-    
+
+    TL_DIRECTORY : str
+        Name of the directory wherein the predicitons after transfer learning on taken-out CMIP6 simulations (associated to shuffle_idx) is stored (Format: Transfer_learning_YYYY-MM-DD_hh-mm-ss).
+        Set to None in case of plotting figures from the paper.
+
+    AM_families : bool
+        Flag that is True when a shuffle of the leave-one-out cross-validation performed while considering atmospheric model families
+        has to be loaded.
+
     atmospheric_model_family : list of strings
-        (Optional) List of CMIP6 models belonging to the same atmospheric model family of the taken-out model.
+        List of CMIP6 models belonging to the same atmospheric model family of the taken-out model.
         Set to None in case of not excluding the CMIP6 models belonging to the same atmospheric model family (e.g., Fig. S5)
 
-    TL_DIRECTORY : str 
-        (Optional) Name of the directory wherein the predicitons after transfer learning on taken-out CMIP6 simulations (associated to shuffle_idx) is stored (Format: Transfer_learning_YYYY-MM-DD_hh-mm-ss).
-        Set to None in case of plotting figures from the paper.
-    
+
     Returns
     -------
         ndarray containing predictions generated after transfer learning on taken-out CMIP6 simulation
-        
+
         `shape: (21, 3, 249, 64, 128)` if models belonging to the same atmospheric model families are not excluded
     """
 
@@ -659,17 +666,26 @@ def read_tl_simulations_predictions_shuffle(shuffle_idx, compute_figures_tables,
     else:
         shuffle_number = f'{shuffle_idx+1}'
 
-    if compute_figures_tables:
-        pickle_in = open(f'{ROOT_SOURCE_DATA}/Transfer_Learning_on_Simulations/Predictions_shuffle-{shuffle_number}.pickle','rb')
-        predictions_tl_on_simulations = pickle.load(pickle_in)
-    elif os.path.exists(f'{ROOT_EXPERIMENTS}/Transfer_Learning_on_Simulations/{TL_DIRECTORY}/Shuffle_{shuffle_number}/Shuffle_{shuffle_number}.pickle'):
-        pickle_in = open(f'{ROOT_EXPERIMENTS}/Transfer_Learning_on_Simulations/{TL_DIRECTORY}/Shuffle_{shuffle_number}/Shuffle_{shuffle_number}.pickle','rb')
-        predictions_tl_on_simulations = pickle.load(pickle_in)
+
+    if compute_figures_tables_paper:
+        if AM_families:
+            pickle_in = open(f'{ROOT_SOURCE_DATA}/Transfer_Learning_on_Simulations_AM_families/Predictions_shuffle-{shuffle_number}.pickle','rb')
+            predictions_tl_on_simulations = pickle.load(pickle_in)
+        else:    
+            pickle_in = open(f'{ROOT_SOURCE_DATA}/Transfer_Learning_on_Simulations/Predictions_shuffle-{shuffle_number}.pickle','rb')
+            predictions_tl_on_simulations = pickle.load(pickle_in)
+    elif os.path.exists(f'{ROOT_EXPERIMENTS}/Transfer_Learning_on_Simulations/{TL_DIRECTORY}/Shuffle_{shuffle_number}.pickle'):
+        if AM_families:
+            pickle_in = open(f'{ROOT_EXPERIMENTS}/Transfer_Learning_on_Simulations_AM_families/{TL_DIRECTORY}/Shuffle_{shuffle_number}.pickle','rb')
+            predictions_tl_on_simulations = pickle.load(pickle_in)
+        else:
+            pickle_in = open(f'{ROOT_EXPERIMENTS}/Transfer_Learning_on_Simulations_AM_families/{TL_DIRECTORY}/Shuffle_{shuffle_number}.pickle','rb')
+            predictions_tl_on_simulations = pickle.load(pickle_in)
     else:
         models_list_remaining = models_list.copy()
         model_taken_out = models_list[shuffle_idx]
         models_list_remaining.remove(model_taken_out)
-        
+
         if atmospheric_model_family:
             for family_member in atmospheric_model_family:
                 models_list_remaining.remove(family_member)
@@ -677,8 +693,12 @@ def read_tl_simulations_predictions_shuffle(shuffle_idx, compute_figures_tables,
         predictions_tl_on_simulations = np.zeros((len(models_list_remaining), len(short_scenarios_list), n_training_years_loo_cv+n_test_years_loo_cv-2, 64, 128)) # (21,3,249,64,128)
         for model_idx, model in enumerate(models_list_remaining):
             for scenario_idx, scenario_short in enumerate(short_scenarios_list):
-                TRAIN_SET_PREDICTIONS_DIRECTORY = f'{ROOT_EXPERIMENTS}/Transfer_Learning_on_Simulations/Shuffle_{shuffle_number}/Plots/Training_set_predictions/tas_{model}_{scenario_short}_shuffle-{shuffle_number}'
-                TEST_SET_PREDICTIONS_DIRECTORY = f'{ROOT_EXPERIMENTS}/Transfer_Learning_on_Simulations/Shuffle_{shuffle_number}/Plots/Test_set_predictions/tas_{model}_{scenario_short}_shuffle-{shuffle_number}'
+                if atmospheric_model_family:
+                    TRAIN_SET_PREDICTIONS_DIRECTORY = f'{ROOT_EXPERIMENTS}/Transfer_Learning_on_Simulations_AM_families/{TL_DIRECTORY}/Shuffle_{shuffle_number}/Plots/Training_set_predictions/tas_{model}_{scenario_short}_shuffle-{shuffle_number}'
+                    TEST_SET_PREDICTIONS_DIRECTORY = f'{ROOT_EXPERIMENTS}/Transfer_Learning_on_Simulations_AM_families/{TL_DIRECTORY}/Shuffle_{shuffle_number}/Plots/Test_set_predictions/tas_{model}_{scenario_short}_shuffle-{shuffle_number}'
+                else:
+                    TRAIN_SET_PREDICTIONS_DIRECTORY = f'{ROOT_EXPERIMENTS}/Transfer_Learning_on_Simulations/{TL_DIRECTORY}/Shuffle_{shuffle_number}/Plots/Training_set_predictions/tas_{model}_{scenario_short}_shuffle-{shuffle_number}'
+                    TEST_SET_PREDICTIONS_DIRECTORY = f'{ROOT_EXPERIMENTS}/Transfer_Learning_on_Simulations/{TL_DIRECTORY}/Shuffle_{shuffle_number}/Plots/Test_set_predictions/tas_{model}_{scenario_short}_shuffle-{shuffle_number}'
                 '''
                 TRAINING SET PREDICTIONS
                 '''
@@ -705,10 +725,74 @@ def read_tl_simulations_predictions_shuffle(shuffle_idx, compute_figures_tables,
                     file = open(f'{TEST_SET_PREDICTIONS_DIRECTORY}/{mp_filename}')
                     model_test_set_prediction_array[mp_idx,:,:] = np.loadtxt(file, delimiter=',')
                 predictions_tl_on_simulations[model_idx,scenario_idx,n_training_years_loo_cv:,:,:] = model_test_set_prediction_array[:-2,:,:]
-        pickle_out = open(f'{ROOT_EXPERIMENTS}/Transfer_Learning_on_Simulations/{TL_DIRECTORY}/Shuffle_{shuffle_number}/Shuffle_{shuffle_number}.pickle','wb')
+        if AM_families:
+            pickle_out = open(f'{ROOT_EXPERIMENTS}/Transfer_Learning_on_Simulations_AM_families/{TL_DIRECTORY}/Shuffle_{shuffle_number}/Shuffle_{shuffle_number}.pickle','wb')
+        else:
+            pickle_out = open(f'{ROOT_EXPERIMENTS}/Transfer_Learning_on_Simulations/{TL_DIRECTORY}/Shuffle_{shuffle_number}/Shuffle_{shuffle_number}.pickle','wb')
         pickle.dump(predictions_tl_on_simulations, pickle_out)
         pickle_out.close()
     return predictions_tl_on_simulations
+
+def read_train_obs_predictions(n_datasets_per_model_scenario, start_year_training, end_year_training, start_year_test, end_year_test, compute_figures_tables_paper=True, FIRST_TRAINING_OBS=None):
+    '''
+        Load predictions after training solely on observative data: (5, 22, 3, 120, 64, 128)
+    '''
+    n_training_years = end_year_training-start_year_training+1
+    n_test_years = end_year_test-start_year_test+1
+
+
+    if compute_figures_tables_paper:
+        pickle_in = open(f'{ROOT_SOURCE_DATA}/First_Training_obs/First_Training_obs.pickle','rb')
+        predictions_train = pickle.load(pickle_in)
+    elif os.path.exists(f'{ROOT_EXPERIMENTS}/First_Training_obs/{FIRST_TRAINING_OBS}/{FIRST_TRAINING_OBS}.pickle'):
+        pickle_in = open(f'{ROOT_EXPERIMENTS}/First_Training_obs/{FIRST_TRAINING_OBS}/{FIRST_TRAINING_OBS}.pickle','rb')
+        predictions_train = pickle.load(pickle_in) # (5,22,3,120,64,128)
+    else:
+        """ Load predictions made by the DNNs after training on observational data """
+        predictions_train = np.zeros((n_datasets_per_model_scenario, len(models_list), len(short_scenarios_list), n_training_years+n_test_years, 64, 128)) # (5,22,3,10,64,128)
+        for model_idx, model in tqdm(enumerate(models_list), total=len(models_list)):
+            for scenario_idx, scenario_short in enumerate(short_scenarios_list):
+
+                for i in range(n_datasets_per_model_scenario):
+
+                    TEST_SET_PREDICTIONS_DIRECTORY = f'{ROOT_EXPERIMENTS}/First_Training_obs/{FIRST_TRAINING_OBS}/Plots/Test_set_predictions/tas_{model}_{scenario_short}_{i+1}'
+                    TRAIN_SET_PREDICTIONS_DIRECTORY = f'{ROOT_EXPERIMENTS}/First_Training_obs/{FIRST_TRAINING_OBS}/Plots/Training_set_predictions/tas_{model}_{scenario_short}_{i+1}'
+                    
+            ########################### TRAINING SET PREDICTIONS ###########################
+                    model_train_set_predictions_filenames_list = os.listdir(TRAIN_SET_PREDICTIONS_DIRECTORY)
+                    model_train_set_predictions_filenames_list = [fn for fn in model_train_set_predictions_filenames_list if (fn.endswith('.csv'))]
+                    model_train_set_predictions_filenames_list.sort()
+
+                    model_train_set_prediction_array = np.zeros((n_training_years, 64, 128))
+
+                    for mp_idx, mp_filename in enumerate(model_train_set_predictions_filenames_list):
+                        if (not mp_filename.endswith('.csv')):
+                            continue
+                        file = open(f'{TRAIN_SET_PREDICTIONS_DIRECTORY}/{mp_filename}')
+                        model_train_set_prediction_array[mp_idx,:,:] = np.loadtxt(file, delimiter=',')
+
+                    predictions_train[i,model_idx,scenario_idx,:n_training_years,:,:] = model_train_set_prediction_array # (5,22,3,122,64,128)
+            ########################### TEST SET PREDICTIONS ###########################
+                    model_predictions_filenames_list = os.listdir(TEST_SET_PREDICTIONS_DIRECTORY)
+                    model_predictions_filenames_list = [fn for fn in model_predictions_filenames_list if (fn.endswith('.csv'))]
+                    model_predictions_filenames_list.sort()
+
+                    model_prediction_array = np.zeros((n_test_years+2, 64, 128)) # qui è necessario inserire +2 se end_year_test=2098, perché leggiamo comunque tutti i file fino al 2100, ma poi in predictions salviamo solo quelli fino al 2098. Ma comunque vanno letti tutti, altrimenti dà errore
+
+                    for mp_idx, mp_filename in enumerate(model_predictions_filenames_list):
+                        if (not mp_filename.endswith('.csv')):
+                            continue
+                        file = open(f'{TEST_SET_PREDICTIONS_DIRECTORY}/{mp_filename}')
+                        model_prediction_array[mp_idx,:,:] = np.loadtxt(file, delimiter=',')
+
+                    predictions_train[i,model_idx,scenario_idx,n_training_years:,:,:] = model_prediction_array[:-2] # (5,22,3,120,64,128)
+
+        pickle_out = open(f'{ROOT_EXPERIMENTS}/First_Training_obs/{FIRST_TRAINING_OBS}/{FIRST_TRAINING_OBS}.pickle','wb')
+        pickle.dump(predictions_train, pickle_out)
+        pickle_out.close()
+
+    return predictions_train
+
 
 def compute_values_for_scaling(X_ssp_list):
     """
@@ -738,18 +822,18 @@ def compute_values_for_scaling(X_ssp_list):
 def compute_years_to_threshold(window_size, predictions_means):
     """
     Compute the years in which 1.5°C and 2°C thresholds will be crossed.
-    Each of those years is computed as the first year at which 21-year running averages 
-    of surface air temperature exceed the given global warming level, 
-    as done in Chapter 4 of the IPCC WGI AR6 
+    Each of those years is computed as the first year at which 21-year running averages
+    of surface air temperature exceed the given global warming level,
+    as done in Chapter 4 of the IPCC WGI AR6
 
     Parameters
     ----------
     window_size : int
         Length of the moving window
-    
+
     predictions_means : array
         Array of temperature values
-    
+
     Returns
     -------
     return : list
@@ -761,29 +845,36 @@ def compute_years_to_threshold(window_size, predictions_means):
     moving_averages = []
 
     i = 0
-    
+
     # Loop through the array to consider every window of size 21
     while i < len(predictions_means) - window_size + 1:
-    
+
         # Calculate the average of current window
         window_average = np.sum(predictions_means[i:i+window_size]) / window_size
-        
+
         # Store the average of current window in moving average list
         moving_averages.append(window_average)
-        
+
         # Shift window to right by one position
         i += 1
 
-    # Extract from the moving averages the value exceeding 1.5 
-    value_1 = [i for i in moving_averages if i >= 1.5][0]
-    # Extract from the moving averages the value exceeding 2 
-    value_2 = [i for i in moving_averages if i >= 2][0]
+    # Extract from the moving averages the value exceeding 1.5
+    value_1 = [i for i in moving_averages if i >= 1.5]
+    if value_1:
+        value_1 = value_1[0]
+        year_to_1_5_threshold = 1979+10 + moving_averages.index(value_1)
+    else:
+        year_to_1_5_threshold = np.nan
 
-    year_to_1_5_threshold = 1979+10 + moving_averages.index(value_1)
-    year_to_2_threshold = 1979+10 + moving_averages.index(value_2)
-
+    # Extract from the moving averages the value exceeding 2
+    value_2 = [i for i in moving_averages if i >= 2]
+    if value_2:
+        value_2 = value_2[0]
+        year_to_2_threshold = 1979+10 + moving_averages.index(value_2)
+    else:
+        year_to_2_threshold = np.nan
     return [year_to_1_5_threshold, year_to_2_threshold]
-                
+
 """
     ORDINARY LEAST-SQUARES FIT (FOURTH-ORDER POLYNOMIAL)
 """
@@ -791,6 +882,144 @@ def moving_average(a, n=10):
     ret = np.cumsum(a, dtype=float)
     ret[n:] = ret[n:] - ret[:-n]
     return ret[n - 1:] / n
+
+def running_average(arr, window_size):
+    """
+    Compute the running avg along each row of a matrix using a window of size window_size
+
+    Parameters
+    ----------
+    arr : ndarray
+        2D array to compute running avg for each row
+    window_size : int
+        Size of the running avg window
+    Returns
+    -------
+        ndarray containing the running averages computed along each each row which now has n - window_size + 1 elements
+    """
+    return np.convolve(arr, np.ones(window_size) / window_size, mode='valid')
+  
+# Define smoothing function for a single time series
+def smooth_timeseries(data, years, dof):
+    """
+    Smoothing function over a single time series
+
+    Parameters
+    ----------
+    data : ndarray
+        Data to compute smoothing splines
+    years : ndarray
+        Years associated to the data
+    dof : int
+        Number of degrees of freedom of the smoothing spline
+    Returns
+    -------
+        ndarray containing the smoothing splines
+    """
+    gam = LinearGAM(s(0, n_splines=dof))
+    gam.fit(years[:, np.newaxis], data)
+    return gam.predict(years[:, np.newaxis])
+
+def smoothing_splines_pygam(temperature_array, take_out, dof):
+    """
+    Smoothing function over an array of maps
+
+    Parameters
+    ----------
+    temperature_array : ndarray
+        Array of maps to compute smoothing splines
+    take_out : bool
+        Bool set to True if the smoothing splines are computed on a taken-out model simulation
+    dof : int
+        Number of degrees of freedom of the smoothing spline
+    Returns
+    -------
+        ndarray containing the smoothing splines maps
+    """
+
+    years = np.arange(1850, 2099)
+    
+    lat_lon_shape = temperature_array.shape[-2:]
+
+    smoothed_maps = np.empty_like(temperature_array)
+
+    if not take_out:
+        for idx_short_scenario in range(3):
+            for idx_model in range(22):
+                flattened_maps = temperature_array[idx_model, idx_short_scenario,:,:,:].reshape(len(years), -1)
+
+                # Apply smoothing in parallel
+                smoothed_flattened = Parallel(n_jobs=-1)(
+                    delayed(smooth_timeseries)(flattened_maps[:, i], years, dof)
+                    for i in range(flattened_maps.shape[1])
+                )
+
+                # Reshape back to original grid
+                smoothed_maps[idx_model, idx_short_scenario, :,:,:] = np.array(smoothed_flattened).T.reshape(len(years), *lat_lon_shape)
+
+    else:
+        for idx_short_scenario in range(3):
+            flattened_maps = temperature_array[idx_short_scenario,:,:,:].reshape(len(years), -1)
+
+            # Apply smoothing in parallel
+            smoothed_flattened = Parallel(n_jobs=-1)(
+                delayed(smooth_timeseries)(flattened_maps[:, i], years, dof)
+                for i in range(flattened_maps.shape[1])
+            )
+
+            # Reshape back to original grid
+            smoothed_maps[idx_short_scenario, :,:,:] = np.array(smoothed_flattened).T.reshape(len(years), *lat_lon_shape)
+
+    return smoothed_maps
+
+def compute_running_avg_climatological_avg(arr, taken_out):
+
+    """
+    Compute running avgs with 3-years climatological avg
+
+    Parameters
+    ----------
+    arr : ndarray
+        Array to compute running avgs
+        Requested shape for both simulations and DNNs predictions: (models, scenarios, years)
+        Requested shape for taken-out simulation: (scenarios, years)
+    taken_out : bool
+        bool set to True if the array to compute anomalies is a taken-out simualation. Indeed, in this case there is one less dimension and this has to be taken into account in terms of axis to compute avgs
+    Returns
+    -------
+        ndarray containing the running avgs with 3-years climatological avg. Size: (models, scenarios, years) if taken_out=False or (scenarios, years) if taken_out=True
+    """
+
+    # Compute averages for padding with climatology averages for moving avg
+    if taken_out:
+        # Average of the first 3 years
+        average_start = np.mean(arr[:,:3], axis=1) # (3)
+        # Average of the last 3 year
+        average_end = np.mean(arr[:,-3:], axis=1) # (3)
+        # padded_arr = np.zeros((3, 249+window_size-1))
+        runn_avg_arr = np.zeros((3, 249))
+        
+        avg_start_repeated = np.tile(average_start[:, np.newaxis], (1, window_size // 2 - 1))
+        avg_end_repeated = np.tile(average_end[:, np.newaxis], (1, window_size // 2))
+        padded_arr = np.concatenate((avg_start_repeated, arr[:,:], avg_end_repeated), axis=1)
+    
+        for idx_short_scenario, short_scenario in enumerate(short_scenarios_list):
+            runn_avg_arr[idx_short_scenario,:] = np.array([running_average(row, window_size) for row in padded_arr[np.newaxis, idx_short_scenario,:]]) # (3, 249) # np.newaxis is necessary to reshape warming_simulation_takeout_means to (1,249), so that moving_average() function can be correctly applied
+
+    else:
+        average_start = np.mean(arr[:,:,:3], axis=2) # (21,3)
+        average_end = np.mean(arr[:,:,-3:], axis=2) # (21,3)
+        # padded_arr = np.zeros((21, 3, 249+window_size-1))
+        runn_avg_arr = np.zeros((arr.shape[0], 3, arr.shape[-1]))
+
+        avg_start_repeated = np.tile(average_start[:,:, np.newaxis], (1,window_size // 2 - 1))
+        avg_end_repeated = np.tile(average_end[:,:, np.newaxis], (1, window_size // 2))
+        padded_arr = np.concatenate((avg_start_repeated, arr[:,:,:], avg_end_repeated), axis=2)
+
+        for idx_short_scenario, short_scenario in enumerate(short_scenarios_list):
+            runn_avg_arr[:,idx_short_scenario,:] = np.array([running_average(row, window_size) for row in padded_arr[:,idx_short_scenario,:]]) # (21, 3, 249)
+    
+    return runn_avg_arr
 
 def main_uncertainty_partitioning(y, first_year, last_year):
 	n = 4	# this is the degree of the approximating polynomial P(x)
@@ -801,7 +1030,7 @@ def main_uncertainty_partitioning(y, first_year, last_year):
 	a = np.linalg.solve(xs, xy)	# solve the system of equations
 	poly_values = fn(x, a)
 	return(poly_values)
-	
+
 def get_system_of_equations(x, y, n):
 	xs = np.array([]); xy = np.array([])
 	for index in range(0, (n + 1)):
