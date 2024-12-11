@@ -8,10 +8,10 @@ import sys
 sys.path.insert(1, '..')
 from lib import *
 
-""" Load DNNs predictions after pre-training """
-predictions = read_first_train_predictions(compute_figures_tables)
+# Load DNNs predictions after pre-training
+predictions = read_first_train_predictions(compute_figures_tables_paper, 'First_Training_')
 
-""" Load CMIP6 ESMs simulations """
+# Load CMIP6 simulations
 simulations = read_all_cmip6_simulations()
 
 # Convert from K to Celsius degrees
@@ -22,7 +22,7 @@ simulations_C = simulations - 273.15
 annual_predictions_means_C = ((predictions_C * area_cella).sum(axis=(-1,-2)))/total_earth_area
 annual_simulations_means_C = ((simulations_C * area_cella).sum(axis=(-1,-2)))/total_earth_area
 
-""" Plot """
+''' Plot '''
 fig, axs = plt.subplots(len(short_scenarios_list), 2, figsize=(40,30))
 plt.subplots_adjust(wspace=0.1, hspace=0.4)
 for scenario_short_idx, scenario_short in enumerate(short_scenarios_list):

@@ -10,13 +10,13 @@ import sys
 sys.path.insert(1, './..')
 from lib import *
 
-""" Load DNNs predictions after TL on observations """
-predictions = read_tl_obs_predictions(n_BEST_datasets_per_model_scenario, compute_figures_tables)
+#  Load DNNs predictions after TL on observations
+predictions = read_tl_obs_predictions(n_BEST_datasets_per_model_scenario, compute_figures_tables_paper)
 
-""" Load CMIP6 ESMs simulations"""
+#  Load smoothed CMIP6 simulations
 simulations = read_all_cmip6_simulations()
 
-""" Loada BEST observational data """
+#  Loada BEST observational data
 BEST_data_array = read_BEST_data(PATH_BEST_DATA)
 
 pickle_in = open('lons.pickle', 'rb')
@@ -67,17 +67,19 @@ for scenario_idx, scenario_short in enumerate(short_scenarios_list):
     max_value = np.concatenate((prediction_warming[scenario_idx,:,:], simulation_warming[scenario_idx,:,:])).max()
 
     max_abs_value = np.max([abs(min_value), abs(max_value)])
+
     levels = np.linspace(min_value, max_value, 40)
 
     if scenario_idx == 0:
-        cbarticks = np.arange(-2,12,2)
+        cbarticks = [-3.3, -1, 1, 3, 5, 7, 9, 10.5]
     elif scenario_idx == 1:
-        cbarticks = np.arange(-2,16,2)
+        cbarticks = [-2, 0, 2, 4, 6, 8, 10, 12, 13.3]
     elif scenario_idx == 2:
-        cbarticks = np.arange(-2,18,2)
+        cbarticks = [-1.2, 1, 3, 5, 7, 9, 11, 13, 15.2]
 
     fig = plt.figure(constrained_layout=True, figsize=(30,10))
-    ax = fig.add_gridspec(3,11)
+    ax = fig.add_gridspec(3,11, wspace=0.01)
+
 
     """ ax1 """
     ax1 = fig.add_subplot(ax[1:, :5], projection=ccrs.Robinson())
@@ -88,14 +90,12 @@ for scenario_idx, scenario_short in enumerate(short_scenarios_list):
                     vmin=-max_abs_value, vmax=max_abs_value, levels=levels, 
                     transform = ccrs.PlateCarree(),cmap='bwr')#, extend='both')
     ax1.coastlines()
-    gl1 = ax1.gridlines(draw_labels=True, linestyle='--', color='black', linewidth=0.1)
-    gl1.top_labels = False
-    gl1.right_labels = False
+    gl1 = ax1.gridlines(draw_labels=False, linestyle='--', color='black', linewidth=0.1)
     gl1.xlabel_style = {'size': size_lat_lon_coords, 'color': 'black', 'weight': 'normal'}
     gl1.ylabel_style = {'size': size_lat_lon_coords, 'color': 'black', 'weight': 'normal'}
     ax1.set_title(f'DNNs ensemble', size=size_title_axes, pad=17)
 
-    cbar1 = plt.colorbar(cs1,shrink=0.7, ticks=cbarticks, orientation='horizontal', label='Surface Air Temperature anomaly [°C]')
+    cbar1 = plt.colorbar(cs1,shrink=0.7, ticks=cbarticks, orientation='horizontal', label='Surface Air Temperature anomaly [°C]', pad=0.01)
     cbar1.set_label(label='Surface Air Temperature anomaly [°C]', size=size_colorbar_labels, labelpad=20)
     for l in cbar1.ax.xaxis.get_ticklabels():
         l.set_size(size_colorbar_ticks)
@@ -119,16 +119,17 @@ for scenario_idx, scenario_short in enumerate(short_scenarios_list):
                     vmin=-max_abs_value, vmax=max_abs_value, levels=levels,
                     transform = ccrs.PlateCarree(),cmap='bwr')
     ax3.coastlines()
-    gl3 = ax3.gridlines(draw_labels=True, linestyle='--', color='black', linewidth=0.1)
-    gl3.top_labels = False
-    gl3.right_labels = False
+    gl3 = ax3.gridlines(draw_labels=False, linestyle='--', color='black', linewidth=0.1)
     gl3.xlabel_style = {'size': size_lat_lon_coords, 'color': 'black', 'weight': 'normal'}
     gl3.ylabel_style = {'size': size_lat_lon_coords, 'color': 'black', 'weight': 'normal'}
     ax3.set_title(f'CMIP6 ensemble', size=size_title_axes, pad=17)
-    cbar3 = plt.colorbar(cs3,shrink=0.7,ticks=cbarticks,orientation='horizontal')
+    cbar3 = plt.colorbar(cs3,shrink=0.7,ticks=cbarticks,orientation='horizontal', pad=0.01)
     cbar3.set_label(label='Surface Air Temperature anomaly [°C]', size=size_colorbar_labels, labelpad=20)
     for l in cbar3.ax.xaxis.get_ticklabels():
         l.set_size(size_colorbar_ticks)
+
+    fig.subplots_adjust(top=0.9, bottom=0.2, left=0.05, right=0.95)
+
 
     fig.suptitle(f'{scenario}', y=0.85, size=size_suptitlefig)
     plt.savefig(f'Fig_S9_{scenario_short}.png', bbox_inches = 'tight', dpi=300)

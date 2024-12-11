@@ -8,8 +8,12 @@ import sys
 sys.path.insert(1, './..')
 from lib import *
 
-""" Load CMIP6 ESMs simulations """
-simulations = read_all_cmip6_simulations()
+AM_families = True
+baseline_years = '1995-2014'
+
+# Load smoothed CMIP6 simulations
+pickle_in = open(f'{PATH_SMOOTHED_CMIP6_SIMULATIONS_DIRECTORY}/smooth_splines_dof-{n_dof}_CMIP6_warming_{baseline_years}.pickle','rb')
+smooth_warming_simulations = pickle.load(pickle_in)
 
 ensemble_statistics = np.zeros((len(short_scenarios_list),3,22))            # scenarios, (median, q05, q95), models
 simulations_statistics = np.zeros((len(short_scenarios_list),4,22))         # scenarios, (median, q05, q95, avg_taken_out), models
@@ -18,7 +22,7 @@ first_training_statistics = np.zeros((len(short_scenarios_list),3,22))      # s
 for idx_take_out, (take_out, take_out_family) in enumerate(atmospheric_model_families_dict.items()):
     models_list_remaining = models_list.copy()
 
-    predictions_tl_on_simulations = read_tl_simulations_predictions_shuffle(idx_take_out, compute_figures_tables, take_out_family)
+    predictions_tl_on_simulations = read_tl_simulations_predictions_shuffle(idx_take_out, compute_figures_tables_paper, None, AM_families, take_out_family)
 
     if take_out_family:
         take_out_family_idx = []
@@ -33,30 +37,29 @@ for idx_take_out, (take_out, take_out_family) in enumerate(atmospheric_model_fam
             continue
         remaining_models_idx.append(i)
 
-    simulations_remaining = simulations[remaining_models_idx,:,:,:]
-    simulation_takeout = simulations[idx_take_out,:,:,:]
+    smooth_warming_simulations_remaining = smooth_warming_simulations[remaining_models_idx,:,:,:]
+    smooth_warming_simulation_takeout = smooth_warming_simulations[idx_take_out,:,:,:]
 
-    # Convert from K to Celsius degrees
+    # Convert from K to Celsius degrees 
     predictions_C = predictions_tl_on_simulations - 273.15
-    simulation_takeout_C = simulation_takeout - 273.15
-    simulations_remaining_C = simulations_remaining - 273.15
 
-    # Compute average global surface air temperature
-    annual_predictions_means = ((predictions_C * area_cella).sum(axis=(-1,-2)))/total_earth_area
-    annual_simulation_takeout_means = ((simulation_takeout_C * area_cella).sum(axis=(-1,-2)))/total_earth_area
-    annual_simulations_remaining_means = ((simulations_remaining_C * area_cella).sum(axis=(-1,-2)))/total_earth_area
+    # Compute climatologies in 1995-2014 
+    predictions_baseline = np.mean(predictions_tl_on_simulations[:,:,1995-1850:2014-1850+1,:,:], axis=2) # (21, 3, 64, 128)
 
-    # Compute warming wrt pre-industrial period
-    warming_predictions_means = annual_predictions_means - global_mean_temp_1995_2014
-    warming_simulation_takeout_means = annual_simulation_takeout_means - global_mean_temp_1995_2014
-    warming_simulations_remaining_means = annual_simulations_remaining_means - global_mean_temp_1995_2014
+    # Compute warming wrt 1995-2014 
+    warming_predictions = predictions_tl_on_simulations[:,:,:,:,:] - predictions_baseline[:,:, np.newaxis,:,:] # (21, 3, 249, 64, 128) # np.newaxis is needed to add a new axis and let the difference be broadcasted
+
+    # Compute spatial avg warming
+    warming_predictions_means = ((warming_predictions * area_cella).sum(axis=(-1,-2)))/total_earth_area # (21, 3, 249)
+    smooth_warming_simulation_takeout_means = ((smooth_warming_simulation_takeout * area_cella).sum(axis=(-1,-2)))/total_earth_area # (3, 249)
+    smooth_warming_simulations_remaining_means = ((smooth_warming_simulations_remaining * area_cella).sum(axis=(-1,-2)))/total_earth_area # (21, 3, 249)
 
     # Select warming values in 2081-2098
     warming_predictions_means_2081_2098 = warming_predictions_means[:,:,2081-1850:]
-    warming_simulation_takeout_means_2081_2098 = warming_simulation_takeout_means[:,2081-1850:]
-    warming_simulations_remaining_means_2081_2098 = warming_simulations_remaining_means[:,:,2081-1850:]
+    smooth_warming_simulation_takeout_means_2081_2098 = smooth_warming_simulation_takeout_means[:,2081-1850:]
+    smooth_warming_simulations_remaining_means_2081_2098 = smooth_warming_simulations_remaining_means[:,:,2081-1850:]
 
-    #  Compute median, 5% and 95%
+    # Compute median, 5% and 95%
     median_predictions_means_2081_2098 = np.zeros((len(short_scenarios_list),2098-2081+1))
     median_simulations_remaining_2081_2098 = np.zeros((len(short_scenarios_list),2098-2081+1))
 
@@ -72,9 +75,9 @@ for idx_take_out, (take_out, take_out_family) in enumerate(atmospheric_model_fam
             q05_predictions_means_2081_2098[short_scenario_idx,i] = np.percentile(warming_predictions_means_2081_2098[:,short_scenario_idx,i],5)
             q95_predictions_means_2081_2098[short_scenario_idx,i] = np.percentile(warming_predictions_means_2081_2098[:,short_scenario_idx,i],95)
             # 21 remaining CMIP6 simulations
-            median_simulations_remaining_2081_2098[short_scenario_idx,i] = np.median(warming_simulations_remaining_means_2081_2098[:,short_scenario_idx,i])
-            q05_simulations_remaining_means_2081_2098[short_scenario_idx,i] = np.percentile(warming_simulations_remaining_means_2081_2098[:,short_scenario_idx,i],5)
-            q95_simulations_remaining_means_2081_2098[short_scenario_idx,i] = np.percentile(warming_simulations_remaining_means_2081_2098[:,short_scenario_idx,i],95)
+            median_simulations_remaining_2081_2098[short_scenario_idx,i] = np.median(smooth_warming_simulations_remaining_means_2081_2098[:,short_scenario_idx,i])
+            q05_simulations_remaining_means_2081_2098[short_scenario_idx,i] = np.percentile(smooth_warming_simulations_remaining_means_2081_2098[:,short_scenario_idx,i],5)
+            q95_simulations_remaining_means_2081_2098[short_scenario_idx,i] = np.percentile(smooth_warming_simulations_remaining_means_2081_2098[:,short_scenario_idx,i],95)
             
         ensemble_statistics[short_scenario_idx,0,idx_take_out] = median_predictions_means_2081_2098[short_scenario_idx,:].mean()
         ensemble_statistics[short_scenario_idx,1,idx_take_out] = q05_predictions_means_2081_2098[short_scenario_idx,:].mean()
@@ -83,10 +86,9 @@ for idx_take_out, (take_out, take_out_family) in enumerate(atmospheric_model_fam
         simulations_statistics[short_scenario_idx,0,idx_take_out] = median_simulations_remaining_2081_2098[short_scenario_idx,:].mean()
         simulations_statistics[short_scenario_idx,1,idx_take_out] = q05_simulations_remaining_means_2081_2098[short_scenario_idx,:].mean()
         simulations_statistics[short_scenario_idx,2,idx_take_out] = q95_simulations_remaining_means_2081_2098[short_scenario_idx,:].mean()
-        simulations_statistics[short_scenario_idx,3,idx_take_out] = warming_simulation_takeout_means_2081_2098[short_scenario_idx,:].mean()
+        simulations_statistics[short_scenario_idx,3,idx_take_out] = smooth_warming_simulation_takeout_means_2081_2098[short_scenario_idx,:].mean()
 
-
-""" Plot """
+''' Plot '''
 fig, axes = plt.subplots(3, figsize=(35,30))
 fig.subplots_adjust(hspace=0.6)
 xpos = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23]
@@ -155,15 +157,15 @@ for idx_short_scenario, short_scenario in enumerate(short_scenarios_list):
             axes[idx_short_scenario].fill([left,right,right,left],
                         [lower,lower,upper,upper],
                         facecolor='#00FFFF',edgecolor='black',linewidth=0.3,label=red_label)
-            axes[idx_short_scenario].plot([left+0.01,right-0.01],[avg_takeout,avg_takeout],color='red',linewidth=3,label='Taken-out CMIP6 ESM')
+            axes[idx_short_scenario].plot([left+0.01,right-0.01],[avg_takeout,avg_takeout],color='black',linewidth=3,label='Taken-out CMIP6 ESM')
             
         else:
             axes[idx_short_scenario].fill([left,right,right,left],
                         [lower,lower,upper,upper],
                         facecolor='#00FFFF',edgecolor='black',linewidth=0.3)
-            axes[idx_short_scenario].plot([left+0.01,right-0.01],[avg_takeout,avg_takeout],color='red',linewidth=3)
+            axes[idx_short_scenario].plot([left+0.01,right-0.01],[avg_takeout,avg_takeout],color='black',linewidth=3)
             
-        axes[idx_short_scenario].plot([left+0.01,right-0.01],[median,median],color='white',linewidth=2)
+        axes[idx_short_scenario].plot([left+0.01,right-0.01],[median,median],color='red',linewidth=3)
 
         # DNNs predictions after TL on simulations
         left = pos+l2
@@ -179,8 +181,8 @@ for idx_short_scenario, short_scenario in enumerate(short_scenarios_list):
             axes[idx_short_scenario].fill([left,right,right,left],
                         [lower,lower,upper,upper],
                         facecolor='#007FEA',edgecolor='black',linewidth=0.3)
-        axes[idx_short_scenario].plot([left+0.01,right-0.01],[median_ensemble,median_ensemble],color='white',linewidth=2)
-        axes[idx_short_scenario].plot([left+0.01,right-0.01],[avg_takeout,avg_takeout],color='red',linewidth=3)
+        axes[idx_short_scenario].plot([left+0.01,right-0.01],[median_ensemble,median_ensemble],color='white',linewidth=3)
+        axes[idx_short_scenario].plot([left+0.01,right-0.01],[avg_takeout,avg_takeout],color='black',linewidth=3, linestyle=':')
 
     axes[idx_short_scenario].set_xlim([0.5,3.56])
     axes[idx_short_scenario].set_ylim([0,upper_lim+0.5])
@@ -189,7 +191,8 @@ for idx_short_scenario, short_scenario in enumerate(short_scenarios_list):
 
     axes[idx_short_scenario].set_ylabel('Surface Air Temperature 2081-2098\nrelative to '+str(refperiod_start)+'-'+str(refperiod_end)+' ($^\circ$C)',fontsize=size_x_y_labels, labelpad=18)
 
-    legend = axes[idx_short_scenario].legend(loc='upper left', shadow=False, fontsize='small',ncol=1,frameon=True,facecolor='white', framealpha=1,prop={'size':size_legend})    
+    if idx_short_scenario == 0:
+        legend = axes[idx_short_scenario].legend(loc='upper left', shadow=False, fontsize='small',ncol=1,frameon=True,facecolor='white', framealpha=1,prop={'size':size_legend})    
 
     for yval in range(1,upper_lim+2):
         axes[idx_short_scenario].plot([0,23],[yval-refperiod_conversion,yval-refperiod_conversion], color='black', dashes=(2, 10),linewidth=0.7)

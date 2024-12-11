@@ -25,21 +25,21 @@ models_list_take_out.remove(model_take_out)
 
 print(f'Model take out: {model_take_out} - shuffle: {shuffle_number}')
 
-""" Load DNNs predictions after pre-training """
-pre_train_predictions = read_first_train_predictions(compute_figures_tables)
+# Load DNNs predictions after pre-training
+pre_train_predictions = read_first_train_predictions(compute_figures_tables_paper)
 
-""" Load predictions made by the DNNs after transfer learning on the take-out simulation """
-predictions_after_tl = read_tl_simulations_predictions_shuffle(shuffle_idx, compute_figures_tables)
+# Load predictions made by the DNNs after transfer learning on the take-out simulation
+predictions_after_tl = read_tl_simulations_predictions_shuffle(shuffle_idx, compute_figures_tables_paper, 'Test', None, False)
 
-""" Load CMIP6 take-out simulation """
+# Load CMIP6 take-out simulation
 take_out_simulation = read_cmip6_simulation(model_take_out)
 
-""" Load latitude grid points """
+# Load latitude grid points
 pickle_in = open(f'lats.pickle', 'rb')
 lats = pickle.load(pickle_in)
 pickle_in.close()
 
-""" Load longitude grid points """
+# Load longitude grid points
 pickle_in = open(f'lons.pickle', 'rb')
 lons = pickle.load(pickle_in)
 pickle_in.close()
@@ -57,11 +57,10 @@ size_colorbar_labels = 32
 size_colorbar_ticks = 29
 colormap = 'seismic'
 
-
 fig = plt.figure(figsize=(30,27))
 gs = fig.add_gridspec(2, 1, height_ratios=[1,0.05], hspace=0.05)
 
-gs0 = gs[0].subgridspec(3,1, hspace=0.55)
+gs0 = gs[0].subgridspec(3,1, hspace=0.45, wspace=0.35)
 
 for idx_short_scenario, short_scenario in enumerate(short_scenarios_list):
     scenario = f'SSP{short_scenario[-3]}-{short_scenario[-2]}.{short_scenario[-1]}'
@@ -95,7 +94,7 @@ for idx_short_scenario, short_scenario in enumerate(short_scenarios_list):
                             cmap=colormap, vmin=vmin, vmax=vmax)
     ax0.set_title(f'Difference (Pre-trained DNNs–{model_taken_out})', loc='center', size=size_title_axes, pad=17)
     ax0.coastlines()
-    gl0 = ax0.gridlines(crs=ccrs.PlateCarree(), draw_labels={'bottom': 'x', 'left': 'y'}, linestyle='--', linewidth=0.1, color='black')
+    gl0 = ax0.gridlines(crs=ccrs.PlateCarree(), draw_labels=False, linestyle='--', linewidth=0.1, color='black')
     gl0.xlabel_style = {'size': size_lat_lon_coords, 'color': 'black', 'weight': 'normal'}
     gl0.ylabel_style = {'size': size_lat_lon_coords, 'color': 'black', 'weight': 'normal'}
 
@@ -107,29 +106,29 @@ for idx_short_scenario, short_scenario in enumerate(short_scenarios_list):
                             cmap=colormap, vmin=vmin, vmax=vmax)
     ax1.coastlines()
     ax1.set_title(f'Difference (DNNs after TL–{model_taken_out})', loc='center', size=size_title_axes, pad=17)
-    gl1 = ax1.gridlines(crs=ccrs.PlateCarree(), draw_labels={'bottom': 'x', 'left': 'y'}, linestyle='--', linewidth=0.1, color='black')
+    gl1 = ax1.gridlines(crs=ccrs.PlateCarree(), draw_labels=False, linestyle='--', linewidth=0.1, color='black')
     gl1.xlabel_style = {'size': size_lat_lon_coords, 'color': 'black', 'weight': 'normal'}
     gl1.ylabel_style = {'size': size_lat_lon_coords, 'color': 'black', 'weight': 'normal'}
 
-    plt.text(x=0.13, y=0.9, s='A', fontweight='bold',
+    plt.text(x=0.14, y=0.9, s='A', fontweight='bold',
             fontsize=size_suptitlefig, ha="center", transform=fig.transFigure)
     plt.text(x=0.87, y=0.9, s='D', fontweight='bold',
             fontsize=size_suptitlefig, ha="center", transform=fig.transFigure)
-    plt.text(x=0.13, y=0.63, s='B', fontweight='bold',
+    plt.text(x=0.14, y=0.63, s='B', fontweight='bold',
             fontsize=size_suptitlefig, ha="center", transform=fig.transFigure)
     plt.text(x=0.87, y=0.63, s='E', fontweight='bold',
             fontsize=size_suptitlefig, ha="center", transform=fig.transFigure)
-    plt.text(x=0.13, y=0.35, s='C', fontweight='bold',
+    plt.text(x=0.14, y=0.35, s='C', fontweight='bold',
             fontsize=size_suptitlefig, ha="center", transform=fig.transFigure)
     plt.text(x=0.87, y=0.35, s='F', fontweight='bold',
             fontsize=size_suptitlefig, ha="center", transform=fig.transFigure)
 
 axcbar = fig.add_subplot(gs[1])
 axcbar.axis('off')
-cbar5 = fig.colorbar(cs1, ax=axcbar, orientation='horizontal', ticks=cbarticks_2, fraction=0.5)
+cbar5 = fig.colorbar(cs1, ax=axcbar, orientation='horizontal', ticks=cbarticks_2, fraction=0.5, pad=0.05)
 cbar5.set_label(label='Surface Air Temperature difference [°C]', size=size_colorbar_labels, labelpad=20)
 for l in cbar5.ax.xaxis.get_ticklabels():
     l.set_size(size_colorbar_ticks)
 
-plt.savefig(f'Fig_S4_{model_taken_out}.png', bbox_inches='tight', dpi=300)
+plt.savefig(f'Fig_S4/Fig_S4_{model_taken_out}.png', bbox_inches='tight', dpi=300)
 plt.close()

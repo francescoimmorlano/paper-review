@@ -8,55 +8,66 @@ import sys
 sys.path.insert(1, './..')
 from lib import *
 
-""" Load DNNs predictions """
-predictions = read_tl_obs_predictions(n_BEST_datasets_per_model_scenario, compute_figures_tables)
+baseline_years = '1995-2014'
 
-""" Load CMIP6 ESMs simulations """
-simulation_array = read_all_cmip6_simulations()
+# Load DNNs predictions
+predictions = read_tl_obs_predictions(n_BEST_datasets_per_model_scenario, compute_figures_tables_paper, 'Transfer_learning_')
+
+# Load smoothed CMIP6 simulations
+pickle_in = open(f'{PATH_SMOOTHED_CMIP6_SIMULATIONS_DIRECTORY}/smooth_splines_dof-{n_dof}_CMIP6_warming_{baseline_years}.pickle','rb')
+smooth_warming_simulations = pickle.load(pickle_in)
 
 # Convert from K to Celsius degrees
 predictions_C = predictions - 273.15
-simulation_array_C = simulation_array - 273.15
 
-# Compute average global surface air temperature
-annual_predictions_means = ((predictions_C * area_cella).sum(axis=(-1,-2)))/total_earth_area
-annual_simulations_means = ((simulation_array_C * area_cella).sum(axis=(-1,-2)))/total_earth_area
+# Compute grid-point climatologies in 1995-2014
+predictions_baseline = np.mean(predictions[:,:,:,1995-1979:2014-1979+1,:,:], axis=3)
 
-# Compute warming wrt pre-industrial period
-warming_predictions_means = annual_predictions_means - global_mean_temp_1995_2014
-warming_simulations_means = annual_simulations_means - global_mean_temp_1995_2014
+# Compute grid-point warming wrt pre-industrial period
+warming_predictions = predictions[:,:,:,:,:,:] - predictions_baseline[:,:,:,np.newaxis,:,:]
 
-# Compute avg warming in 2081-2098
+# Compute spatial average warming
+warming_predictions_means = ((warming_predictions * area_cella).sum(axis=(-1,-2)))/total_earth_area
+smooth_warming_simulations_means = ((smooth_warming_simulations * area_cella).sum(axis=(-1,-2)))/total_earth_area
+
+# Select predictions anomalies in 2081-2098
 warming_predictions_means_2081_2098 = warming_predictions_means[:,:,:,2081-1979:]
-warming_simulations_means_2081_2098 = warming_simulations_means[:,:,2081-1850:]
 
-# Compute median, 5% and 95%
 median_predictions_means_2081_2098 = np.zeros((len(short_scenarios_list),2098-2081+1))
-median_simulations_means_2081_2098 = np.zeros((len(short_scenarios_list),2098-2081+1))
 q05_predictions_means_2081_2098 = np.zeros((len(short_scenarios_list),2098-2081+1))
-q05_simulations_means_2081_2098 = np.zeros((len(short_scenarios_list),2098-2081+1))
 q95_predictions_means_2081_2098 = np.zeros((len(short_scenarios_list),2098-2081+1))
-q95_simulations_means_2081_2098 = np.zeros((len(short_scenarios_list),2098-2081+1))
 for short_scenario_idx, short_scenario in enumerate(short_scenarios_list):
     # DNNs predictions
     for i in range(2098-2081+1):
         median_predictions_means_2081_2098[short_scenario_idx,i] = np.median(np.ravel(warming_predictions_means_2081_2098[:,:,short_scenario_idx,i]))
         q05_predictions_means_2081_2098[short_scenario_idx,i] = np.percentile(warming_predictions_means_2081_2098[:,:,short_scenario_idx,i],5)
         q95_predictions_means_2081_2098[short_scenario_idx,i] = np.percentile(warming_predictions_means_2081_2098[:,:,short_scenario_idx,i],95)
-    # CMIP6 ESMs simulations
-        median_simulations_means_2081_2098[short_scenario_idx,i] = np.median(np.ravel(warming_simulations_means_2081_2098[:,short_scenario_idx,i]))
-        q05_simulations_means_2081_2098[short_scenario_idx,i] = np.percentile(warming_simulations_means_2081_2098[:,short_scenario_idx,i],5)
-        q95_simulations_means_2081_2098[short_scenario_idx,i] = np.percentile(warming_simulations_means_2081_2098[:,short_scenario_idx,i],95)
- 
 # Compute avg median, 5% and 95% in 2081-2098
 # DNNs predictions
 avg_median_ensemble = median_predictions_means_2081_2098.mean(axis=1)
 q05_ensemble = q05_predictions_means_2081_2098.mean(axis=1)
 q95_ensemble = q95_predictions_means_2081_2098.mean(axis=1)
+
+# Select simulations anomalies in 2081-2098
+smooth_warming_simulations_means_2081_2098 = smooth_warming_simulations_means[:,:,2081-1850:]
+
+# Compute median, 5% and 95%
+median_simulations_means_2081_2098 = np.zeros((len(short_scenarios_list),2098-2081+1))
+q05_simulations_means_2081_2098 = np.zeros((len(short_scenarios_list),2098-2081+1))
+q95_simulations_means_2081_2098 = np.zeros((len(short_scenarios_list),2098-2081+1))
+for short_scenario_idx, short_scenario in enumerate(short_scenarios_list):
+    # CMIP6 ESMs simulations
+    for i in range(2098-2081+1):
+        median_simulations_means_2081_2098[short_scenario_idx,i] = np.median(np.ravel(smooth_warming_simulations_means_2081_2098[:,short_scenario_idx,i]))
+        q05_simulations_means_2081_2098[short_scenario_idx,i] = np.percentile(smooth_warming_simulations_means_2081_2098[:,short_scenario_idx,i],5)
+        q95_simulations_means_2081_2098[short_scenario_idx,i] = np.percentile(smooth_warming_simulations_means_2081_2098[:,short_scenario_idx,i],95)
+ 
+# Compute avg median, 5% and 95% in 2081-2098
 # CMIP6 ESMs simulations
 avg_median_simulations = median_simulations_means_2081_2098.mean(axis=1)
 q05_simulations = q05_simulations_means_2081_2098.mean(axis=1)
 q95_simulations = q95_simulations_means_2081_2098.mean(axis=1)
+
 
 """
 5%, median, 95% average temperature values in 2081–2100 wrt 1995-2014
@@ -89,13 +100,14 @@ print(f'{np.round(q05_ensemble[0],2)} — {np.round(avg_median_ensemble[0],2)} �
 print(f'{np.round(q05_ensemble[1],2)} — {np.round(avg_median_ensemble[1],2)} — {np.round(q95_ensemble[1],2)}')
 print(f'{np.round(q05_ensemble[2],2)} — {np.round(avg_median_ensemble[2],2)} — {np.round(q95_ensemble[2],2)}\n')
 
-print('Uncertainty reduction')
+print('Uncertainty reduction in 2081-2098')
 for idx_short_scenario, scenario_short in enumerate(short_scenarios_list):
     print(f'SSP{scenario_short[-3]}-{scenario_short[-2]}.{scenario_short[-1]}')
-    print(f'\tRibes:\t\t{np.round(((ribes_q95[idx_short_scenario]-ribes_q05[idx_short_scenario])-(q95_ensemble[idx_short_scenario]-q05_ensemble[idx_short_scenario]))/(ribes_q95[idx_short_scenario]-ribes_q05[idx_short_scenario])*100).astype(int)}%')
-    print(f'\tLiang:\t\t{np.round(((yongxiao_q95[idx_short_scenario]-yongxiao_q05[idx_short_scenario])-(q95_ensemble[idx_short_scenario]-q05_ensemble[idx_short_scenario]))/(yongxiao_q95[idx_short_scenario]-yongxiao_q05[idx_short_scenario])*100).astype(int)}%')
-    print(f'\tTokarska:\t{np.round(((tokarska_q95[idx_short_scenario]-tokarska_q05[idx_short_scenario])-(q95_ensemble[idx_short_scenario]-q05_ensemble[idx_short_scenario]))/(tokarska_q95[idx_short_scenario]-tokarska_q05[idx_short_scenario])*100).astype(int)}%')
-    print(f'\tIPCC WG1 AR6:\t{np.round(((ipcc_wg1_q95[idx_short_scenario]-ipcc_wg1_q05[idx_short_scenario])-(q95_ensemble[idx_short_scenario]-q05_ensemble[idx_short_scenario]))/(ipcc_wg1_q95[idx_short_scenario]-ipcc_wg1_q05[idx_short_scenario])*100).astype(int)}%')
+    print(f'\tRibes:\t\t\t{np.round(((ribes_q95[idx_short_scenario]-ribes_q05[idx_short_scenario])-(q95_ensemble[idx_short_scenario]-q05_ensemble[idx_short_scenario]))/(ribes_q95[idx_short_scenario]-ribes_q05[idx_short_scenario])*100).astype(int)}%')
+    print(f'\tLiang:\t\t\t{np.round(((yongxiao_q95[idx_short_scenario]-yongxiao_q05[idx_short_scenario])-(q95_ensemble[idx_short_scenario]-q05_ensemble[idx_short_scenario]))/(yongxiao_q95[idx_short_scenario]-yongxiao_q05[idx_short_scenario])*100).astype(int)}%')
+    print(f'\tTokarska:\t\t{np.round(((tokarska_q95[idx_short_scenario]-tokarska_q05[idx_short_scenario])-(q95_ensemble[idx_short_scenario]-q05_ensemble[idx_short_scenario]))/(tokarska_q95[idx_short_scenario]-tokarska_q05[idx_short_scenario])*100).astype(int)}%')
+    print(f'\tIPCC WG1 AR6:\t\t{np.round(((ipcc_wg1_q95[idx_short_scenario]-ipcc_wg1_q05[idx_short_scenario])-(q95_ensemble[idx_short_scenario]-q05_ensemble[idx_short_scenario]))/(ipcc_wg1_q95[idx_short_scenario]-ipcc_wg1_q05[idx_short_scenario])*100).astype(int)}%')
+    print(f'\tUnconstrained CMIP6:\t{np.round(((q95_simulations[idx_short_scenario]-q05_simulations[idx_short_scenario])-(q95_ensemble[idx_short_scenario]-q05_ensemble[idx_short_scenario]))/(q95_simulations[idx_short_scenario]-q05_simulations[idx_short_scenario])*100).astype(int)}%')
 
 
 """ Plot """
@@ -357,4 +369,6 @@ axes.tick_params(
 
 plt.savefig(f'Fig_3.png', bbox_extra_artists=(legend,), bbox_inches='tight', dpi=300)
 plt.close()
+
+
 
