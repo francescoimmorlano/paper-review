@@ -23,14 +23,14 @@ compute_validation = True
 # First training directory (only the directory name)
 FIRST_TRAINING_DIRECTORY = ''
 
-optim = Adam(learning_rate=lr_tl, beta_1=0.9, beta_2=0.999, epsilon=1e-8)
+optim = Adam(learning_rate=lr_tl_obs, beta_1=0.9, beta_2=0.999, epsilon=1e-8)
 
 
 class PerformancePlotCallback(Callback):
-    def __init__(self, val_X, val_y, val_year, model_name, short_scenario, scenario, y_min, y_max, path_to_save):
+    def __init__(self, val_X, val_y, val_years, model_name, short_scenario, scenario, y_min, y_max, path_to_save):
         self.val_X = val_X
         self.val_y = val_y
-        self.val_year = val_year
+        self.val_years = val_years
         self.model_name = model_name
         self.short_scenario = short_scenario
         self.scenario = scenario
@@ -45,31 +45,29 @@ class PerformancePlotCallback(Callback):
             fig = plt.figure(figsize=(20,13))
 
             if scale_output:
-                val_y_pred_denorm = denormalize_img(val_y_pred[0,:,:,0], feature_range[0], feature_range[1], self.y_min, self.y_max)
-                val_y_denorm = denormalize_img(self.val_y[0,:,:,0], feature_range[0], feature_range[1], self.y_min, self.y_max)
+                val_y_pred_denorm = denormalize_img(val_y_pred[:,:,:,0], feature_range[0], feature_range[1], self.y_min, self.y_max)
+                val_y_denorm = denormalize_img(self.val_y[:,:,:,0], feature_range[0], feature_range[1], self.y_min, self.y_max)
             else:
-                val_y_pred_denorm = val_y_pred[0,:,:,0]
-                val_y_denorm = val_y[0,:,:,0]
+                val_y_pred_denorm = val_y_pred[:,:,:,0]
+                val_y_denorm = val_y[:,:,:,0]
 
+            for year_idx, year in enumerate(self.val_years):
+                with open(f'{self.path_to_save}/{variable_short}_{model}_{self.short_scenario}_epoch-{epoch}_val_year-{year}_{ts_human}_val_set_prediction.csv',"w+") as my_csv:
+                    csvWriter = csv.writer(my_csv,delimiter=',')
+                    csvWriter.writerows(val_y_pred_denorm[year_idx,:,:])
 
-            PATH_TO_SAVE_PREDICTION = f'{self.path_to_save}/{variable_short}_{model}_{self.short_scenario}_epoch-{epoch}_year-{self.val_year}_{ts_human}_val_set_prediction'
-
-
-            with open(f'{PATH_TO_SAVE_PREDICTION}.csv',"w+") as my_csv:
-                csvWriter = csv.writer(my_csv,delimiter=',')
-                csvWriter.writerows(val_y_pred_denorm[:,:])
-
-            plot_prediction_mae_map(val_y_denorm, val_y_pred_denorm, self.model_name, self.scenario, epoch, self.val_year, f'{PATH_TO_SAVE_PREDICTION}.png')
+            PATH_TO_SAVE_PLOT = f'{self.path_to_save}/{variable_short}_{model}_{self.short_scenario}_epoch-{epoch}_{ts_human}_val_set_prediction'
+            plot_prediction_mae_map(val_y_denorm, val_y_pred_denorm, self.model_name, self.scenario, epoch, f'{PATH_TO_SAVE_PLOT}.png')
 
 if compute_validation:
     columns_history_df = ['train_loss', 'val_loss']
 else:
     columns_history_df = ['train_loss']
 
-columns_model_hyperparameters_df = ['transf_learn_directory', 'first_train_directory', 'end_year_training', 'model', 'scenario', 'date_time', 'elapsed_loop_time', 'elapsed_train_time', 'epochs', 'batch_size', 'learning_rate', 'shuffle', 'scale_input', 'scale_output', 'norm_min', 'norm_max', 'y_min', 'y_max', 'CO2eq_climate_model', 'withAerosolForcing', 'use_observations']
+columns_model_hyperparameters_df = ['transf_learn_directory', 'first_train_directory', 'end_year_training', 'model', 'scenario', 'date_time', 'elapsed_loop_time', 'elapsed_train_time', 'epochs', 'val_years', 'batch_size', 'learning_rate', 'shuffle', 'scale_input', 'scale_output', 'norm_min', 'norm_max', 'y_min', 'y_max', 'CO2eq_climate_model', 'withAerosolForcing']
 
-PATH_TRAINED_MODELS = f'{ROOT_EXPERIMENTS}/Experiments/First_Training/{FIRST_TRAINING_DIRECTORY}/Models'
-PATH_TRANSFER_LEARNING_ON_OBSERVATIONS = f'{ROOT_EXPERIMENTS}/Experiments/Transfer_Learning_on_Observations/Transfer_learning_obs_{ts_human}'
+PATH_TRAINED_MODELS = f'{ROOT_EXPERIMENTS}/First_Training/{FIRST_TRAINING_DIRECTORY}/Models'
+PATH_TRANSFER_LEARNING_ON_OBSERVATIONS = f'{ROOT_EXPERIMENTS}/Transfer_Learning_on_Observations/Transfer_learning_obs_{ts_human}'
 PATH_HISTORIES = f'{PATH_TRANSFER_LEARNING_ON_OBSERVATIONS}/Histories'
 PATH_MODELS = f'{PATH_TRANSFER_LEARNING_ON_OBSERVATIONS}/Models'
 PATH_PLOTS = f'{PATH_TRANSFER_LEARNING_ON_OBSERVATIONS}/Plots'
@@ -116,10 +114,10 @@ for idx_model, model  in enumerate(models_list):
 
                 PATH_TEST_SET_PREDICTIONS = f'{PATH_PLOTS}/Test_set_predictions/{variable_short}_{model}_{scenario_short}_{i}'
                 PATH_TRAINING_SET_PREDICTIONS = f'{PATH_PLOTS}/Training_set_predictions/{variable_short}_{model}_{scenario_short}_{i}'
-                PATH_PREDICTIONS_YEAR_2021 = f'{PATH_TRANSFER_LEARNING_ON_OBSERVATIONS}/Predictions_on_year_2022/{variable_short}_{model}_{scenario_short}_{i}'
+                PATH_PREDICTIONS_VAL_YEARS = f'{PATH_TRANSFER_LEARNING_ON_OBSERVATIONS}/Predictions_on_val_years/{variable_short}_{model}_{scenario_short}_{i}'
                 if not os.path.exists(PATH_TEST_SET_PREDICTIONS): os.makedirs(PATH_TEST_SET_PREDICTIONS)
                 if not os.path.exists(PATH_TRAINING_SET_PREDICTIONS): os.makedirs(PATH_TRAINING_SET_PREDICTIONS)
-                if not os.path.exists(PATH_PREDICTIONS_YEAR_2021): os.makedirs(PATH_PREDICTIONS_YEAR_2021)
+                if not os.path.exists(PATH_PREDICTIONS_VAL_YEARS): os.makedirs(PATH_PREDICTIONS_VAL_YEARS)
 
                 train_X = np.array(X_ssp_list[idx_short_scenario][:n_training_years_tl_obs])
                 train_X = train_X.reshape(n_training_years_tl_obs,1,1)
@@ -131,7 +129,7 @@ for idx_model, model  in enumerate(models_list):
                 train_y[:,:,:] = BEST_data_array[:n_training_years_tl_obs,:,:]
 
                 trained_model = load_model(f'{PATH_TRAINED_MODELS}/{trained_model_filename}') # The model trained during the First Training must be loaded every time
-                K.set_value(trained_model.optimizer.lr, lr_tl)
+                K.set_value(trained_model.optimizer.lr, lr_tl_obs)
 
                 if compute_validation:
                     n_val_years = len(val_years_list_tl_obs)
@@ -197,14 +195,7 @@ for idx_model, model  in enumerate(models_list):
                     if (not scale_output):
                         y_min = 0
                         y_max = 0
-                    # We get 2095, which is the last one, and we use for the callback 
-                    val_y_2022 = val_y[-1,:,:,:] 
-                    val_y_2022 = val_y[-1,:,:,:]
-                    # From (64,128,1) to (1,64,128,1)
-                    val_y_2022 = val_y_2022[np.newaxis,:,:,:] 
-                    val_X_2022 = val_X[-1,:]
-                    val_X_2022 = val_X_2022[np.newaxis,:]
-                    save_validation_predictions_callback = PerformancePlotCallback(val_X, val_y, val_years_list_tl_obs[-1], model, scenario_short, scenario, y_min, y_max, PATH_PREDICTIONS_YEAR_2021)
+                    save_validation_predictions_callback = PerformancePlotCallback(val_X, val_y, val_years_list_tl_obs, model, scenario_short, scenario, y_min, y_max, PATH_PREDICTIONS_VAL_YEARS)
                 else:
                     save_validation_predictions_callback = []
 
@@ -271,10 +262,6 @@ for idx_model, model  in enumerate(models_list):
                         csvWriter.writerows(test_y_pred_denorm[idx,:,:,0])
                 print('\nSAVED PREDICTIONS ON TEST SET')
 
-                if not save_predictions_on_validation_set and compute_validation:
-                    PATH_TO_SAVE_PREDICTION = f'{PATH_PREDICTIONS_YEAR_2021}/{variable_short}_{model}_{scenario}_epoch-{epochs-1}_year-{val_years_list_tl_obs[-1]}_{ts_human}_val_set_prediction_{i}.png'
-                    plot_prediction_mae_map(train_y_denorm[-1,:,:,0], train_y_pred_denorm[-1,:,:,0], model, scenario, epochs-1, val_years_list_tl_obs[-1], PATH_TO_SAVE_PREDICTION)
-
                 PATH_HYPERPARAMETERS_CSV = f'{PATH_TRANSFER_LEARNING_ON_OBSERVATIONS}/Hyperparameters/{variable_short}_{model}_{scenario_short}_{ts_human}_hyperparameters_{i}.csv'
 
                 transfer_learned_model_path_to_save = f'{PATH_MODELS}/{variable_short}_{model}_{scenario_short}_{ts_human}_model_{i}.tf'
@@ -297,5 +284,6 @@ for idx_model, model  in enumerate(models_list):
 
                 if not os.path.exists(PATH_HYPERPARAMETERS_CSV): pd.DataFrame(columns=columns_model_hyperparameters_df).to_csv(PATH_HYPERPARAMETERS_CSV)
                 df_hypp = pd.read_csv(PATH_HYPERPARAMETERS_CSV, dtype='str', usecols=columns_model_hyperparameters_df_tl)
-                df_hypp.loc[len(df_hypp.index)] = [f'Transfer_learning_{ts_human}', FIRST_TRAINING_DIRECTORY, end_year_training_tl_obs, model, scenario, ts_human, elapsed_loop_time, elapsed_train_time, epochs, batch_size_tl, lr_tl, shuffle[0], scale_input, scale_output, feature_range[0], feature_range[1], y_min, y_max, CO2eq_climate_model, withAerosolForcing]
+                df_hypp.loc[len(df_hypp.index)] = [f'Transfer_learning_{ts_human}', FIRST_TRAINING_DIRECTORY, end_year_training_tl_obs, model, scenario, ts_human, elapsed_loop_time, elapsed_train_time, epochs, f'{start_year_first_training_val}-{end_year_first_training_val}', batch_size_tl, lr_tl_obs, shuffle[0], scale_input, scale_output, feature_range[0], feature_range[1], y_min, y_max, CO2eq_climate_model, withAerosolForcing]
+
                 df_hypp.to_csv(PATH_HYPERPARAMETERS_CSV)

@@ -19,7 +19,7 @@ shuffle = (False, 42)
 # First training directory (only the directory name)
 FIRST_TRAINING_DIRECTORY = ''
 
-optim = Adam(learning_rate=lr_tl, beta_1=0.9, beta_2=0.999, epsilon=1e-8)
+optim = Adam(learning_rate=lr_loo_cv, beta_1=0.9, beta_2=0.999, epsilon=1e-8)
 
 
 # Specify the idx of the model to take out (idx from 1 to 22)
@@ -29,10 +29,10 @@ else:
     sensitivity_list = [9]
 
 class PerformancePlotCallback(Callback):
-    def __init__(self, val_X, val_y, val_year, model_name, short_scenario, scenario, y_min, y_max, path_to_save):
+    def __init__(self, val_X, val_y, val_years, model_name, short_scenario, scenario, y_min, y_max, path_to_save):
         self.val_X = val_X
         self.val_y = val_y
-        self.val_year = val_year
+        self.val_years = val_years
         self.model_name = model_name
         self.short_scenario = short_scenario
         self.scenario = scenario
@@ -45,22 +45,22 @@ class PerformancePlotCallback(Callback):
             val_y_pred = self.model.predict(self.val_X)
 
             if scale_output:
-                val_y_pred_denorm = denormalize_img(val_y_pred[0,:,:,0], feature_range[0], feature_range[1], self.y_min, self.y_max)
-                val_y_denorm = denormalize_img(self.val_y[0,:,:,0], feature_range[0], feature_range[1], self.y_min, self.y_max)
+                val_y_pred_denorm = denormalize_img(val_y_pred[:,:,:,0], feature_range[0], feature_range[1], self.y_min, self.y_max)
+                val_y_denorm = denormalize_img(self.val_y[:,:,:,0], feature_range[0], feature_range[1], self.y_min, self.y_max)
             else:
-                val_y_pred_denorm = val_y_pred[0,:,:,0]
-                val_y_denorm = val_y[0,:,:,0]
+                val_y_pred_denorm = val_y_pred[:,:,:,0]
+                val_y_denorm = val_y[:,:,:,0]
 
-            PATH_TO_SAVE_PREDICTION = f'{self.path_to_save}/{variable_short}_{model}_{self.short_scenario}_shuffle-{shuffle_taken_out_model_number}_epoch-{epoch}_year-{self.val_year}_{ts_human}_val_set_prediction'
+            for year_idx, year in enumerate(self.val_years):
+                with open(f'{self.path_to_save}/{variable_short}_{model}_{self.short_scenario}_shuffle-{shuffle_taken_out_model_number}_epoch-{epoch}_{ts_human}_year-{year}_val_set_prediction.csv',"w+") as my_csv:
+                    csvWriter = csv.writer(my_csv,delimiter=',')
+                    csvWriter.writerows(val_y_pred_denorm[year_idx,:,:])
 
-            with open(f'{PATH_TO_SAVE_PREDICTION}.csv',"w+") as my_csv:
-                csvWriter = csv.writer(my_csv,delimiter=',')
-                csvWriter.writerows(val_y_pred_denorm[:,:])
-
-            plot_prediction_mae_map(val_y_denorm, val_y_pred_denorm, self.model_name, self.scenario, epoch, self.val_year, f'{PATH_TO_SAVE_PREDICTION}.png')
+            PATH_TO_SAVE_PLOT = f'{self.path_to_save}/{variable_short}_{model}_{self.short_scenario}_shuffle-{shuffle_taken_out_model_number}_epoch-{epoch}_{ts_human}_val_set_prediction'
+            plot_prediction_mae_map(val_y_denorm, val_y_pred_denorm, self.model_name, self.scenario, epoch, f'{PATH_TO_SAVE_PLOT}.png')
             
 
-PATH_TRAINED_MODELS = f'{ROOT_EXPERIMENTS}/Experiments/First_Training/{FIRST_TRAINING_DIRECTORY}/Models'
+PATH_TRAINED_MODELS = f'{ROOT_EXPERIMENTS}/First_Training/{FIRST_TRAINING_DIRECTORY}/Models'
 PATH_ANNUAL_SIMULATIONS_DIRECTORY = f'{ROOT_SOURCE_DATA}/CMIP6_data/{variable}/Annual_uniform_remapped'
 
 
@@ -96,7 +96,7 @@ for model_taken_out_idx, model_taken_out  in enumerate(models_list):
     else:
         shuffle_taken_out_model_number = f'{model_taken_out_idx+1}'
 
-    PATH_SHUFFLE = f'{ROOT_EXPERIMENTS}/Experiments/Transfer_Learning_on_Simulations/Transfer_learning_{ts_human}/Shuffle_{shuffle_taken_out_model_number}'
+    PATH_SHUFFLE = f'{ROOT_EXPERIMENTS}/Transfer_Learning_on_Simulations/Transfer_learning_{ts_human}/Shuffle_{shuffle_taken_out_model_number}'
     PATH_HISTORIES = f'{PATH_SHUFFLE}/Histories'
     PATH_HYPERPARAMETERS = f'{PATH_SHUFFLE}/Hyperparameters'
     PATH_MODELS = f'{PATH_SHUFFLE}/Models'
@@ -153,10 +153,10 @@ for model_taken_out_idx, model_taken_out  in enumerate(models_list):
 
             PATH_TEST_SET_PREDICTIONS = f'{PATH_PLOTS}/Test_set_predictions/{variable_short}_{model}_{short_scenario}_shuffle-{shuffle_taken_out_model_number}'
             PATH_TRAINING_SET_PREDICTIONS = f'{PATH_PLOTS}/Training_set_predictions/{variable_short}_{model}_{short_scenario}_shuffle-{shuffle_taken_out_model_number}'
-            PATH_PREDICTIONS_YEAR_2095 = f'{PATH_SHUFFLE}/Predictions_on_year_2095/{variable_short}_{model}_{short_scenario}_shuffle-{shuffle_taken_out_model_number}'
+            PATH_PREDICTIONS_VAL_YEARS = f'{PATH_SHUFFLE}/Predictions_on_val_years/{variable_short}_{model}_{short_scenario}_shuffle-{shuffle_taken_out_model_number}'
             if not os.path.exists(PATH_TEST_SET_PREDICTIONS): os.makedirs(PATH_TEST_SET_PREDICTIONS)
             if not os.path.exists(PATH_TRAINING_SET_PREDICTIONS): os.makedirs(PATH_TRAINING_SET_PREDICTIONS)
-            if not os.path.exists(PATH_PREDICTIONS_YEAR_2095): os.makedirs(PATH_PREDICTIONS_YEAR_2095)
+            if not os.path.exists(PATH_PREDICTIONS_VAL_YEARS): os.makedirs(PATH_PREDICTIONS_VAL_YEARS)
             
             SSP_SIMULATION_TAKEOUT_FILENAME = [s for s in annual_simulations_list if (model_taken_out in s and short_scenario in s)][0]
 
@@ -203,7 +203,7 @@ for model_taken_out_idx, model_taken_out  in enumerate(models_list):
                 test_y[:,:,:] = ssp_simulation_takeout_model_array[n_ssp_training_years_loo_cv:,:,:]
 
             trained_model = load_model(f'{PATH_TRAINED_MODELS}/{trained_model_name}')
-            K.set_value(trained_model.optimizer.lr, lr_tl)
+            K.set_value(trained_model.optimizer.lr, lr_loo_cv)
             new_model = trained_model
 
             # shuffle onyl the training set. It is not needed on test set
@@ -263,11 +263,7 @@ for model_taken_out_idx, model_taken_out  in enumerate(models_list):
                 if (not scale_output):
                     y_min = 0
                     y_max = 0
-                val_y_2095 = val_y[-1,:,:,:]
-                val_y_2095 = val_y_2095[np.newaxis,:,:,:]
-                val_X_2095 = val_X[-1,:]
-                val_X_2095 = val_X_2095[np.newaxis,:]
-                save_validation_predictions_callback = PerformancePlotCallback(val_X_2095, val_y_2095, val_years_list_loo_cv[-1], model, short_scenario, scenario, y_min, y_max, PATH_PREDICTIONS_YEAR_2095)
+                save_validation_predictions_callback = PerformancePlotCallback(val_X, val_y, val_years_list_loo_cv, model, short_scenario, scenario, y_min, y_max, PATH_PREDICTIONS_VAL_YEARS)
             else:
                 save_validation_predictions_callback = []
 
@@ -326,10 +322,6 @@ for model_taken_out_idx, model_taken_out  in enumerate(models_list):
 
             print('\nSAVED PREDICTIONS ON TEST SET')
 
-            if not save_predictions_on_validation_set:
-                PATH_TO_SAVE_PREDICTION = f'{PATH_PREDICTIONS_YEAR_2095}/{variable_short}_{model}_{short_scenario}_shuffle-{shuffle_taken_out_model_number}_epoch-{epochs-1}_year-{2095}_{ts_human}_val_set_prediction.png'
-                plot_prediction_mae_map(test_y_denorm[2095-start_year_test_loo_cv,:,:,0], test_y_pred_denorm[2095-start_year_test_loo_cv,:,:,0], model, scenario, epochs-1, 2095, PATH_TO_SAVE_PREDICTION)
-
             PATH_HYPERPARAMETERS_CSV = f'{PATH_SHUFFLE}/Hyperparameters/{variable_short}_{model}_{short_scenario}_shuffle-{shuffle_taken_out_model_number}_{ts_human}_hyperparameters.csv'
 
             if not os.path.exists(PATH_HYPERPARAMETERS_CSV):
@@ -353,5 +345,5 @@ for model_taken_out_idx, model_taken_out  in enumerate(models_list):
             elapsed_loop = (time.time() - start_loop_time)
             elapsed_loop_time = str(timedelta(seconds=elapsed_loop))
 
-            df_hypp.loc[len(df_hypp.index)] = [f'Transfer_learning_{ts_human}', FIRST_TRAINING_DIRECTORY, end_year_training_loo_cv, model, scenario, ts_human, elapsed_loop_time, elapsed_train_time, epochs, batch_size_tl, lr_tl, shuffle[0], scale_input, scale_output, feature_range[0], feature_range[1], y_min, y_max, CO2eq_climate_model, withAerosolForcing]
+            df_hypp.loc[len(df_hypp.index)] = [f'Transfer_learning_{ts_human}', FIRST_TRAINING_DIRECTORY, end_year_training_loo_cv, model, scenario, ts_human, elapsed_loop_time, elapsed_train_time, epochs, batch_size_tl, lr_loo_cv, shuffle[0], scale_input, scale_output, feature_range[0], feature_range[1], y_min, y_max, CO2eq_climate_model, withAerosolForcing]
             df_hypp.to_csv(PATH_HYPERPARAMETERS_CSV)
